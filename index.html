@@ -1,0 +1,1380 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wolframwürfel-Beschuss</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;500;600&display=swap">
+<style>
+:root{
+  color-scheme: dark;
+  --bg:#0e1114; --panel:#151a1f; --panel-2:#1b2127; --line:#283037; --line-2:#343d46;
+  --ink:#e5e9ec; --ink-2:#a9b2bb; --muted:#76818c;
+  --accent:#e3a23b; --accent-ink:#1b1305;
+  --blue:#3987e5; --orange:#d95926; --aqua:#199e70;
+  --good:#46b37a; --warn:#e0a31c; --crit:#e66767;
+  --f-ui:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--ink)}
+body{margin:0;font-family:var(--f-ui);font-size:14px;line-height:1.4}
+.mono,.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+h1,h2,h3{margin:0;font-weight:600;text-wrap:balance}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 24px;padding-block:14px 10px;padding-inline:16px;max-width:1800px;margin:0 auto}
+.brand{display:flex;flex-direction:column;gap:2px;margin-right:auto}
+.brand h1{font-size:22px;letter-spacing:.01em}
+.brand h1 span{color:var(--accent);font-family:var(--f-mono);font-weight:500;font-size:13px;letter-spacing:.06em;margin-left:8px;vertical-align:3px}
+.brand p{margin:0;color:var(--muted);font-size:13px}
+.scen{display:flex;align-items:center;gap:8px;color:var(--ink-2);font-size:13px}
+.scen select{min-width:230px}
+
+.app{display:grid;grid-template-columns:292px minmax(0,1fr) 336px;gap:14px;padding-inline:16px;padding-block:0 24px;max-width:1800px;margin:0 auto;align-items:start}
+.col{display:flex;flex-direction:column;gap:12px;min-width:0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:6px}
+.panel>h2{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--ink-2);padding:10px 12px 0}
+.pbody{padding:8px 12px 12px;display:flex;flex-direction:column;gap:10px}
+
+/* controls */
+.ctl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 8px;align-items:center}
+.ctl label{color:var(--ink-2);font-size:13px}
+.ctl sub{font-size:.75em}
+.ctl .nbox{display:flex;align-items:center;gap:4px}
+.ctl input[type=number]{width:78px;background:var(--panel-2);border:1px solid var(--line-2);border-radius:4px;padding:3px 6px;text-align:right;font-family:var(--f-mono);font-size:12.5px}
+.ctl .unit{color:var(--muted);font-size:12px;min-width:34px}
+.ctl input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--accent);margin:0;height:18px}
+.ctl.sel{grid-template-columns:1fr}
+.ctl select{width:100%}
+select{background:var(--panel-2);border:1px solid var(--line-2);border-radius:4px;padding:5px 6px}
+.ctl.chk{grid-template-columns:auto 1fr;gap:8px}
+.ctl.chk input{accent-color:var(--accent);margin:0}
+.ctl.disabled{opacity:.45}
+details.adv{border-top:1px dashed var(--line-2);padding-top:8px}
+details.adv summary{cursor:pointer;color:var(--muted);font-size:12.5px}
+details.adv[open] summary{margin-bottom:8px}
+details.adv .pbody{padding:0}
+
+/* viewport */
+.view{position:relative;height:min(62vh,620px);min-height:340px;border-radius:6px;overflow:hidden;background:#0a0c0f;border:1px solid var(--line)}
+.view canvas{display:block;width:100%;height:100%}
+.hud{position:absolute;left:12px;top:10px;display:flex;flex-direction:column;gap:2px;pointer-events:none;text-shadow:0 1px 2px #000}
+#hudPhase{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent)}
+#hudClock{font-size:20px}
+#hudScale{font-size:12px;color:var(--ink-2)}
+.vopts{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;font-size:13px}
+.vopts label{display:flex;gap:6px;align-items:center;background:rgba(14,17,20,.72);padding:4px 8px;border-radius:4px;cursor:pointer}
+.vopts input{accent-color:var(--accent);margin:0}
+.transport{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:10px;padding:18px 12px 10px;background:linear-gradient(transparent,rgba(8,10,12,.9))}
+.btn{background:var(--panel-2);border:1px solid var(--line-2);border-radius:4px;padding:5px 12px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+.transport input[type=range]{flex:1;min-width:60px;accent-color:var(--accent)}
+.transport select{padding:4px}
+.note{color:var(--muted);font-size:12px}
+.vcap{display:flex;flex-wrap:wrap;gap:4px 16px;padding:6px 2px 0;color:var(--muted);font-size:12px}
+
+/* charts */
+.charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.chart{position:relative;padding:10px 10px 6px}
+.chart h3{font-size:13px;font-weight:500;color:var(--ink);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.chart h3 .u{color:var(--muted);font-weight:400;font-size:12px}
+.legend{display:flex;gap:12px;font-size:12px;color:var(--ink-2);font-weight:400}
+.sw{display:inline-block;width:12px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+.chart canvas{width:100%;height:150px;display:block;cursor:crosshair}
+.tip{position:absolute;pointer-events:none;background:var(--panel-2);border:1px solid var(--line-2);border-radius:4px;padding:5px 8px;font-size:12px;white-space:nowrap;z-index:3;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+.tip .mono{font-size:12px}
+
+/* results */
+.verdict{padding:12px;display:flex;flex-direction:column;gap:8px;border-left:4px solid var(--muted)}
+.verdict[data-s=good]{border-left-color:var(--good)}
+.verdict[data-s=warn]{border-left-color:var(--warn)}
+.verdict[data-s=crit]{border-left-color:var(--crit)}
+.chip{align-self:flex-start;display:inline-flex;gap:6px;align-items:center;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:3px;background:var(--panel-2);border:1px solid var(--line-2)}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block}
+.verdict[data-s=good] .chip i{background:var(--good)}
+.verdict[data-s=warn] .chip i{background:var(--warn)}
+.verdict[data-s=crit] .chip i{background:var(--crit)}
+.verdict .big{font-size:26px;font-family:var(--f-mono);letter-spacing:-.01em}
+.verdict .big small{font-size:13px;color:var(--muted);margin-left:6px;font-family:var(--f-ui);letter-spacing:0}
+.verdict p{margin:0;color:var(--ink-2);font-size:13px}
+dl.kv{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px 12px;margin:0;font-size:13px}
+dl.kv dt{color:var(--ink-2)}
+dl.kv dd{margin:0;text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:12.5px}
+.ebar{display:flex;gap:2px;height:14px;border-radius:3px;overflow:hidden;margin-top:2px}
+.ebar div{height:100%;min-width:0}
+.elist{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:4px 8px;font-size:12.5px;align-items:center}
+.elist .sq{width:10px;height:10px;border-radius:2px}
+.elist .num{text-align:right}
+.warns{margin:0;padding-left:18px;color:var(--warn);font-size:12.5px;display:flex;flex-direction:column;gap:4px}
+.warns:empty{display:none}
+details.formulas summary, details.tbl summary{cursor:pointer;color:var(--ink-2);font-size:13px}
+.formulas ul{margin:8px 0 0;padding-left:16px;display:flex;flex-direction:column;gap:7px;font-size:12.5px;color:var(--ink-2)}
+.formulas code{font-family:var(--f-mono);font-size:12px;color:var(--ink);background:var(--panel-2);padding:1px 4px;border-radius:3px}
+.tblwrap{overflow-x:auto;margin-top:8px}
+table{border-collapse:collapse;font-size:12px;width:100%}
+th,td{padding:3px 8px;text-align:right;border-bottom:1px solid var(--line);font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+th{color:var(--ink-2);font-family:var(--f-ui);font-weight:500}
+.err{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;color:var(--ink-2)}
+
+@media (max-width:1240px){
+  .app{grid-template-columns:280px minmax(0,1fr)}
+  .results{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;align-items:start}
+}
+@media (max-width:780px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .params{order:2}
+  .center{order:1}
+  .results{order:3}
+  .view{height:56vh}
+  .scen select{min-width:0;width:100%}
+  .scen{width:100%}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <h1>Wolframwürfel-Beschuss<span>W · 19,25 g/cm³</span></h1>
+    <p>Terminalballistische 3D-Simulation: Tate–Alekseevskii-Eindringung, Hugoniot-Stoßdruck, Starrkörper-Nachlauf</p>
+  </div>
+  <label class="scen" for="scenario">Szenario
+    <select id="scenario"></select>
+  </label>
+</header>
+
+<main class="app">
+  <aside class="col params" id="params" aria-label="Parameter"></aside>
+
+  <section class="col center">
+    <div class="view" id="view">
+      <div class="hud">
+        <div id="hudPhase">Anflug</div>
+        <div id="hudClock" class="mono">t = 0 µs</div>
+        <div id="hudScale" class="mono"></div>
+      </div>
+      <div class="vopts">
+        <label for="optSection"><input type="checkbox" id="optSection"> Schnittansicht</label>
+        <label for="optFollow"><input type="checkbox" id="optFollow" checked> Kamera folgt Würfel</label>
+      </div>
+      <div class="transport">
+        <button class="btn primary" id="btnPlay" type="button">Abspielen</button>
+        <button class="btn" id="btnRestart" type="button">Von vorn</button>
+        <input type="range" id="scrub" min="0" max="1000" value="1000" aria-label="Zeitpunkt im Einschlag">
+        <select id="speed" aria-label="Wiedergabetempo">
+          <option value="0.25">0,25×</option>
+          <option value="0.5">0,5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+        </select>
+      </div>
+    </div>
+    <div class="vcap">
+      <span>Maus ziehen: drehen · Rad: zoomen · Rechtsklick: verschieben</span>
+      <span>Splitter und Ejekta dienen nur der Veranschaulichung.</span>
+    </div>
+
+    <p class="note" style="margin:0">Diagramme über der Zeit t in µs ab Erstkontakt. Klick ins Diagramm springt zu diesem Zeitpunkt.</p>
+    <div class="charts">
+      <div class="panel chart"><h3>Geschwindigkeit <span class="u">m/s</span>
+        <span class="legend"><span><i class="sw" style="background:var(--blue)"></i>v Projektil</span><span><i class="sw" style="background:var(--orange)"></i>u Eindringung</span></span></h3>
+        <canvas id="chV"></canvas></div>
+      <div class="panel chart"><h3>Restlänge Projektil <span class="u">mm</span></h3><canvas id="chL"></canvas></div>
+      <div class="panel chart"><h3>Eindringtiefe <span class="u">mm</span></h3><canvas id="chP"></canvas></div>
+      <div class="panel chart"><h3>Grenzflächendruck <span class="u">GPa</span></h3><canvas id="chS"></canvas></div>
+    </div>
+    <div class="panel"><div class="pbody">
+      <details class="tbl"><summary>Zeitverlauf als Tabelle</summary><div class="tblwrap" id="tbl"></div></details>
+    </div></div>
+  </section>
+
+  <aside class="col results" aria-label="Ergebnis">
+    <div class="panel verdict" id="verdict"></div>
+    <div class="panel"><h2>Stoß</h2><div class="pbody"><dl class="kv" id="kvImpact"></dl></div></div>
+    <div class="panel"><h2>Eindringung</h2><div class="pbody"><dl class="kv" id="kvPen"></dl></div></div>
+    <div class="panel"><h2>Würfel &amp; Impuls</h2><div class="pbody"><dl class="kv" id="kvCube"></dl></div></div>
+    <div class="panel"><h2>Energiebilanz</h2><div class="pbody" id="energy"></div></div>
+    <div class="panel"><div class="pbody">
+      <ul class="warns" id="warns"></ul>
+      <details class="formulas" open><summary>Physikalisches Modell</summary>
+        <ul>
+          <li><b>Grenzfläche (Tate–Alekseevskii):</b> <code>½ρ<sub>p</sub>(v−u)² + Y<sub>p</sub> = ½ρ<sub>t</sub>u² + R<sub>t</sub></code>; Projektilheck <code>ρ<sub>p</sub>L·dv/dt = −Y<sub>p</sub></code>, Erosion <code>dL/dt = −(v−u)</code>, Tiefe <code>dP/dt = u</code>. Numerisch integriert.</li>
+          <li><b>Starres Eindringen</b> (wenn <code>Y<sub>p</sub> ≥ R<sub>t</sub> + kρ<sub>t</sub>v²</code>): <code>m·dv/dt = −A(R<sub>t</sub> + kρ<sub>t</sub>v²)</code>, Nasenfaktor k = 0,5 (flach), 0,25 (Kugel), 0,053 (ogival CRH 3).</li>
+          <li><b>Zielwiderstand</b> aus der sphärischen Hohlraumaufweitung (Hill): <code>R<sub>t</sub> = ⅔Y<sub>t</sub>[1 + ln(E<sub>t</sub> / (3(1−ν<sub>t</sub>)Y<sub>t</sub>))]</code>.</li>
+          <li><b>Stoßdruck</b> durch Impedanzabgleich linearer Hugoniot-Kurven <code>U<sub>s</sub> = c<sub>0</sub> + s·u<sub>p</sub></code>, <code>p = ρ<sub>0</sub>U<sub>s</sub>u<sub>p</sub></code>.</li>
+          <li><b>Elastische Grenze:</b> <code>σ = v·Z<sub>p</sub>Z<sub>t</sub>/(Z<sub>p</sub>+Z<sub>t</sub>)</code> mit <code>Z<sub>p</sub> = √(E<sub>p</sub>ρ<sub>p</sub>)</code>, <code>Z<sub>t</sub> = ρ<sub>t</sub>c<sub>L</sub></code>. Darunter elastischer Stoß; Kontaktdauer 2L/c (Stab) bzw. Hertz (Kugel); Restitution nach Hunter (Wellenabstrahlung).</li>
+          <li><b>Kraterdurchmesser:</b> <code>D<sub>c</sub> = D·√(1 + ρ<sub>t</sub>u²/(2R<sub>t</sub>))</code>.</li>
+          <li><b>Rückseite/Pfropfen:</b> Scherversagen der Restwand h, sobald <code>R<sub>t</sub>·πD<sub>c</sub>²/4 ≥ τ·πD<sub>c</sub>h</code> mit <code>τ = Y<sub>t</sub>/√3</code>; Pfropfen und Restprojektil stoßen inelastisch.</li>
+          <li><b>Abpraller</b> (Tate 1979): <code>tan³θ &gt; ⅔·(ρ<sub>p</sub>v²/Y<sub>p</sub>)·(L²+D²)/(L·D)</code>; ab θ ≥ 30° gleitet ein Projektil unterhalb der Eindringschwelle ab.</li>
+          <li><b>Würfel:</b> Impuls- und Drehimpulserhaltung (erodiertes Material bleibt im Krater), anschließend Starrkörperdynamik mit Coulomb-Reibung und Schwerkraft (Rapier).</li>
+          <li><b>Grenzen:</b> Wolfram ist bei Raumtemperatur spröde (DBTT ≈ 200–400 °C); Radialrisse, Kantenausbrüche und Abplatzungen sind nicht modelliert. Die Anfangsphase (Stoßübergang) und Hypervelocity-Kraterwachstum oberhalb ≈ 3,5 km/s sind im Tate-Modell nur genähert.</li>
+        </ul>
+      </details>
+    </div></div>
+  </aside>
+</main>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+  "rapier": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/rapier.es.js"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import RAPIER from 'rapier';
+let rapierOK=false;
+try{ await RAPIER.init(); rapierOK=true; }catch(err){ console.warn('Rapier nicht verfügbar', err); }
+
+/* =========================================================================
+   Werkstoffdaten (dynamische Fließgrenzen, lineare Hugoniot-Parameter)
+   ========================================================================= */
+const MATS = {
+  wha:   {name:'Wolfram-Schwermetall 93W-Ni-Fe', rho:17600, E:360, nu:0.29, Y:1.5,  C0:4030, S:1.24,  color:0x7f838a},
+  du:    {name:'Uranlegierung U-0,75Ti',          rho:18600, E:172, nu:0.22, Y:1.2,  C0:2490, S:2.20,  color:0x57594f},
+  steel: {name:'Stahl, gehärtet (4340)',          rho:7850,  E:205, nu:0.29, Y:1.6,  C0:4578, S:1.33,  color:0x9ea5ad},
+  cu:    {name:'Kupfer (OFHC)',                   rho:8930,  E:124, nu:0.34, Y:0.3,  C0:3940, S:1.49,  color:0xc47a45},
+  pb:    {name:'Blei',                            rho:11350, E:16,  nu:0.44, Y:0.03, C0:2051, S:1.46,  color:0x70757c},
+  al:    {name:'Aluminium 7075-T6',               rho:2804,  E:72,  nu:0.33, Y:0.55, C0:5200, S:1.36,  color:0xcfd3d8},
+  ti:    {name:'Titan Ti-6Al-4V',                 rho:4419,  E:114, nu:0.34, Y:1.1,  C0:5130, S:1.03,  color:0x8f9398},
+  w:     {name:'Wolfram, rein',                   rho:19250, E:411, nu:0.28, Y:1.5,  C0:4029, S:1.237, color:0xb9bcc1},
+};
+const TUNGSTEN = {rhoT:19250, ET:411, nuT:0.28, YT:1.5, C0T:4029, ST:1.237};
+const PSI = 3; // Ogivenradius in Kalibern (CRH)
+
+const BASE = {
+  mat:'wha', shape:'flat', D:6, L:60, rhoP:17600, YP:1.5, EP:360, nuP:0.29, C0P:4030, SP:1.24,
+  v0:1650, theta:0, offY:0, offZ:0,
+  a:60, ...TUNGSTEN, RtMan:false, Rt:6,
+  mount:'free', mu:0.4, g:9.81,
+};
+function matVals(k){const m=MATS[k];return {mat:k,rhoP:m.rho,EP:m.E,nuP:m.nu,YP:m.Y,C0P:m.C0,SP:m.S};}
+const SCENARIOS = [
+  {id:'rod', name:'Langstab WHA, 1650 m/s', p:{}},
+  {id:'perf', name:'Durchschlag: Langstab gegen 30-mm-Würfel', p:{a:30, v0:1800}},
+  {id:'du', name:'Langstab Uranlegierung, 1650 m/s', p:{...matVals('du')}},
+  {id:'hv', name:'Langstab WHA, 3000 m/s', p:{v0:3000, L:80, D:8, a:100}},
+  {id:'ap', name:'Stahlkern 7,62 mm, 850 m/s', p:{...matVals('steel'), shape:'ogive', D:6.2, L:28, v0:850, a:40}},
+  {id:'pb', name:'Bleigeschoss 9 mm, 360 m/s', p:{...matVals('pb'), shape:'flat', D:9, L:15, v0:360, a:40}},
+  {id:'ball', name:'Stahlkugel 10 mm, 15 m/s (elastisch)', p:{...matVals('steel'), shape:'sphere', D:10, v0:15, a:40}},
+  {id:'ric', name:'Streifschuss 82°: Abpraller', p:{theta:82}},
+  {id:'off', name:'Außermittiger Treffer, Würfel kippt', p:{offY:22, a:60, v0:1500}},
+  {id:'cu', name:'Kupferkugel 20 mm, 2500 m/s', p:{...matVals('cu'), shape:'sphere', D:20, v0:2500, a:80}},
+];
+
+/* =========================================================================
+   Vektorhilfen
+   ========================================================================= */
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const len=a=>Math.hypot(a[0],a[1],a[2]);
+const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+
+// Würfelflächen: Normale n, Flächenbasis u,v mit u×v = n
+const FACES=[
+  {n:[-1,0,0],u:[0,0,1], v:[0,1,0]},
+  {n:[1,0,0], u:[0,0,-1],v:[0,1,0]},
+  {n:[0,1,0], u:[1,0,0], v:[0,0,-1]},
+  {n:[0,-1,0],u:[1,0,0], v:[0,0,1]},
+  {n:[0,0,1], u:[1,0,0], v:[0,1,0]},
+  {n:[0,0,-1],u:[-1,0,0],v:[0,1,0]},
+];
+const FIDX=[[0,1],[3,2],[5,4]];
+
+/* =========================================================================
+   Physik
+   ========================================================================= */
+function tateU(v, rp, rt, dR){
+  // Wurzel von ½ρp(v−u)² + Yp = ½ρt u² + Rt, dR = Rt − Yp (numerisch stabile Form)
+  const c=0.5*rp*v*v-dR; if(c<=0) return 0;
+  let disc=rp*rt*v*v+2*(rp-rt)*dR; if(disc<0) disc=0;
+  return 2*c/(rp*v+Math.sqrt(disc));
+}
+function hugoniot(vn, p, t){
+  let lo=0, hi=vn;
+  for(let i=0;i<80;i++){
+    const up=(lo+hi)/2, Pt=t.rho*(t.C0+t.S*up)*up, upp=vn-up, Pp=p.rho*(p.C0+p.S*upp)*upp;
+    if(Pt>Pp) hi=up; else lo=up;
+  }
+  const up=(lo+hi)/2;
+  return {upT:up, upP:vn-up, P:t.rho*(t.C0+t.S*up)*up, UsT:t.C0+t.S*up, UsP:p.C0+p.S*(vn-up)};
+}
+function rayExit(E,d,h){
+  let tMin=Infinity, face=-1;
+  for(let i=0;i<3;i++){
+    if(Math.abs(d[i])<1e-12) continue;
+    const t=((d[i]>0?h:-h)-E[i])/d[i];
+    if(t>1e-12 && t<tMin){tMin=t; face=FIDX[i][d[i]>0?1:0];}
+  }
+  return {t:tMin, face};
+}
+// 1D-Stoß mit Restitution e (M = Infinity: fest)
+function bounce(m,v,M,V,e){
+  if(!isFinite(M)) return [V-e*(v-V), V];
+  const tot=m*v+M*V;
+  return [(tot-M*e*(v-V))/(m+M), (tot+m*e*(v-V))/(m+M)];
+}
+
+function simulate(P){
+  const warns=[];
+  const D=P.D/1000, a=P.a/1000, h=a/2;
+  const rp=P.rhoP, rt=P.rhoT, Yp=P.YP*1e9, Yt=P.YT*1e9, Ep=P.EP*1e9, Et=P.ET*1e9, nuP=P.nuP, nuT=P.nuT;
+  const A=Math.PI*D*D/4;
+  let Lg, V, ln=0;
+  if(P.shape==='sphere'){ Lg=D; V=Math.PI*D**3/6; }
+  else {
+    Lg=P.L/1000;
+    if(P.shape==='ogive'){
+      ln=0.5*D*Math.sqrt(4*PSI-1);
+      if(Lg<ln*1.1){ Lg=ln*1.1; warns.push('Stab kürzer als die ogivale Spitze: Länge auf '+nf(Lg*1000)+' mm angehoben.'); }
+      V=A*(Lg-ln)+0.55*A*ln;
+    } else V=A*Lg;
+  }
+  const Leff=V/A, m0=rp*V;
+  const knose = P.shape==='flat'?0.5 : P.shape==='ogive'? 0.5*(8*PSI-1)/(24*PSI*PSI) : 0.25;
+  const RtAuto=(2/3)*Yt*(1+Math.log(Et/(3*(1-nuT)*Yt)));
+  const Rt=P.RtMan? P.Rt*1e9 : RtAuto;
+  const cBarP=Math.sqrt(Ep/rp);
+  const cLT=Math.sqrt(Et*(1-nuT)/(rt*(1+nuT)*(1-2*nuT)));
+  const Zp=rp*cBarP, Zt=rt*cLT, Zeff=Zp*Zt/(Zp+Zt);
+  const th=P.theta*Math.PI/180, ct=Math.cos(th), st=Math.sin(th);
+  const d=[ct,0,st];
+  const v0=P.v0, vn0=v0*ct, vt0=v0*st;
+  const hug=hugoniot(vn0,{rho:rp,C0:P.C0P,S:P.SP},{rho:rt,C0:P.C0T,S:P.ST});
+  const E=[-h, P.offY/1000, P.offZ/1000];
+  const ex=rayExit(E,d,h), hLOS=ex.t;
+  const M=rt*a*a*a, Icube=M*a*a/6;
+  const nIn=[1,0,0];                       // Stoßnormale in den Würfel
+  const rxn=cross(E,nIn);
+  const Meff=P.mount==='fixed'? Infinity : 1/(1/M+dot(rxn,rxn)/Icube);
+  const vY=Yp/Zeff;
+  const vPen=Yp<Rt? Math.sqrt(2*(Rt-Yp)/rp) : Rt/Zeff;
+  const sigEl=Zeff*vn0;
+  const eEl=v=>Math.sqrt(Math.max(0,1-1.04*Math.pow(Math.abs(v)/cLT,0.6)));
+  const E0=0.5*m0*v0*v0;
+
+  const R={P, D, Lg, ln, Leff, A, m0, M, a, h, d, E, th, hLOS, exitFace:ex.face, Rt, RtAuto, vY, vPen, sigEl, hug, v0, vn0,
+    Zeff, cLT, knose, E0, warns, prof:[], plug:null, perforated:false, mOut:0, vOut:[0,0,0], Dc0:D, Pmax:0};
+
+  const T=[],VV=[],UU=[],LL=[],PP=[],DC=[],SG=[];
+  const push=(t,v,u,L,p,dc,s)=>{T.push(t);VV.push(v);UU.push(u);LL.push(L);PP.push(p);DC.push(dc);SG.push(s);};
+
+  // ---------- Abpraller-Prüfung ----------
+  const ricTate = th>0 && Math.pow(Math.tan(th),3) > (2/3)*(rp*v0*v0/Yp)*((Lg*Lg+D*D)/(Lg*D));
+  const rigid0 = Yp >= Rt+knose*rt*v0*v0;
+  const noPen0 = !rigid0 && (0.5*rp*v0*v0+Yp<=Rt);
+  const elastic = sigEl<Yp && sigEl<Rt;
+
+  if(elastic){
+    // ---------- elastischer Stoß ----------
+    const e=eEl(vn0);
+    let tc;
+    if(P.shape==='sphere'){
+      const Es=1/((1-nuP*nuP)/Ep+(1-nuT*nuT)/Et), rr=D/2;
+      tc=2.868*Math.pow(m0*m0/(rr*Es*Es*vn0),0.2);
+    } else tc=2*Lg/cBarP;
+    const [v1]=bounce(m0,vn0,Meff,0,e);
+    R.kind='elastic'; R.e=e; R.tc=tc;
+    R.mOut=m0; R.vOut=[v1,0,vt0];
+    const w=-v1;
+    for(let i=0;i<=80;i++){const t=tc*i/80; push(t,(vn0-w)/2+(vn0+w)/2*Math.cos(Math.PI*t/tc),0,Leff,0,D,sigEl*Math.sin(Math.PI*t/tc));}
+    R.tEnd=tc; R.tTail=Math.max(tc*0.6, 1e-6);
+  }
+  else if(ricTate || (th>=Math.PI/6 && noPen0)){
+    // ---------- Abpraller / Abgleiten ----------
+    const eR=Math.min(1, vY/vn0), mu=0.1;
+    const [v1]=bounce(m0,vn0,Meff,0,eR);
+    const vt1=Math.max(0, vt0-mu*(vn0-v1));
+    R.kind='ricochet'; R.ricTate=ricTate; R.e=eR;
+    R.mOut=m0; R.vOut=[v1,0,vt1];
+    const tc=(Lg+D)/v0; R.tc=tc;
+    const vo=len(R.vOut), s0=0.5*rp*vn0*vn0+Yp;
+    for(let i=0;i<=80;i++){const f=i/80; push(tc*f, v0+(vo-v0)*f, 0, Leff, 0, D, s0*Math.sin(Math.PI*f));}
+    R.tEnd=tc; R.tTail=tc*1.5;
+  }
+  else {
+    // ---------- Tate–Alekseevskii-Integration ----------
+    const dR=Rt-Yp, tau=Yt/Math.sqrt(3), dt0=Leff/v0/3000;
+    let t=0, v=v0, L=Leff, Pn=0, eroding=false, end='';
+    let u=0, sig=0, Dc=D;
+    for(let i=0;i<800000;i++){
+      const kn=eroding?0.5:knose;
+      let acc, dLdt;
+      if(Yp>=Rt+kn*rt*v*v){
+        u=v; sig=Rt+kn*rt*v*v; acc=-sig/(rp*L); dLdt=0; Dc=D;
+      } else {
+        eroding=true;
+        u=tateU(v,rp,rt,dR);
+        if(u<=0){ u=0; if(Zeff*v<Yp){ end='rebound'; break; } }
+        sig=0.5*rp*(v-u)*(v-u)+Yp; acc=-Yp/(rp*L); dLdt=-(v-u);
+        Dc= u>0? D*Math.sqrt(1+rt*u*u/(2*Rt)) : D;
+      }
+      push(t,v,u,L,Pn,Dc,sig);
+      if(u>0 && (R.prof.length===0 || Pn-R.prof[R.prof.length-1][0]>hLOS/400)) R.prof.push([Pn,Dc/2]);
+      if(u>0){
+        const hRem=hLOS-Pn;
+        if(hRem<=Rt*Dc/(4*tau)){ R.plug={h:hRem, r:Dc/2, m:rt*Math.PI*Dc*Dc/4*hRem}; end='plug'; break; }
+      }
+      let dt=dt0;
+      if(dLdt<0) dt=Math.min(dt,0.004*L/(-dLdt));
+      if(acc<0) dt=Math.min(dt,0.01*Math.max(v,1)/(-acc));
+      dt=Math.max(dt,dt0*1e-3);
+      v+=acc*dt; L+=dLdt*dt; Pn+=u*dt; t+=dt;
+      if(Pn>=hLOS){ Pn=hLOS; end='perforated'; break; }
+      if(L<=0.003*Leff){ L=0; end='eroded'; break; }
+      if(v<=0.2){ v=0; end='stopped'; break; }
+    }
+    if(!end) end='stopped';
+    push(t,Math.max(v,0),end==='stopped'?0:u,Math.max(L,0),Pn,Dc,end==='stopped'||end==='eroded'?0:sig);
+    if(Pn>0 && R.prof.length) R.prof.push([Pn, R.prof[R.prof.length-1][1]]);
+    R.end=end; R.eroding=eroding; R.tEnd=t; R.Pmax=Pn; R.Lres=Math.max(L,0);
+    R.Dc0 = R.prof.length? R.prof[0][1]*2 : D;
+    const mR=rp*A*Math.max(L,0);
+    if(end==='perforated' || end==='plug'){
+      R.perforated=true; R.kind='perforation';
+      const mp=R.plug? R.plug.m:0;
+      const vRes=mR*v/(mR+mp);
+      R.mOut=mR; R.vOut=mul(d,vRes); R.vRes=vRes;
+      if(R.plug) R.plug.v=vRes;
+      R.tTail=Math.max(0.4*t, Math.min(3*t, 1.4*a/Math.max(vRes,1)));
+    } else if(end==='rebound'){
+      R.kind = Pn>0? 'penetration':'defeat';
+      const vnr=v*ct, pN=m0*vn0-mR*vnr;
+      const Vc=isFinite(Meff)? pN/Meff : 0;
+      if(vnr>Vc && mR>0){
+        const e=eEl(vnr-Vc); const [v1]=bounce(mR,vnr,Meff,Vc,e);
+        R.mOut=mR; R.vOut=[v1,0,v*st]; R.e=e;
+      }
+      R.tTail=Math.max(0.6*t,5e-6);
+    } else {
+      R.kind = Pn>0? 'penetration':'defeat';
+      R.tTail=Math.max(0.35*t,3e-6);
+    }
+    // Warnungen zum Gültigkeitsbereich
+    if(v0>3500) warns.push('Oberhalb ≈ 3,5 km/s wächst der Krater zunehmend hydrodynamisch; das Tate-Modell unterschätzt dann Kratervolumen und Nachlauf.');
+    if(eroding && Lg/D<4) warns.push('L/D = '+nf(Lg/D,2)+': Für kurze Projektile ist das Tate-Modell nur eine grobe Näherung'+(P.shape==='sphere'?' (Kugel als volumengleicher Stab L = ⅔D)':'')+'.');
+    const edge=Math.min(h-Math.abs(E[1]), h-Math.abs(E[2]));
+    if(Pn>0 && edge<1.2*R.Dc0) warns.push('Treffer nahe der Kante: Kantenausbruch im spröden Wolfram wahrscheinlich (nicht modelliert).');
+  }
+  if(P.RtMan) warns.push('Zielwiderstand R_t manuell gesetzt ('+nf(P.Rt)+' GPa statt '+nf(RtAuto/1e9)+' GPa aus der Hohlraumaufweitung).');
+
+  // ---------- Impuls- und Energiebilanz ----------
+  const p0=mul(d,m0*v0);
+  let J=sub(p0, mul(R.vOut,R.mOut));
+  if(R.plug) J=sub(J, mul(d,R.plug.m*R.plug.v));
+  if(len(J)<1e-9*m0*v0) J=[0,0,0];
+  R.J=J;
+  R.Mafter = M + (m0-R.mOut) - (R.plug? R.plug.m:0);
+  const rxJ=cross(E,J);
+  if(P.mount==='fixed'){ R.Vc=[0,0,0]; R.omega=[0,0,0]; R.Ecube=0; }
+  else {
+    const Ia=R.Mafter*a*a/6;
+    R.Vc=mul(J,1/R.Mafter); R.omega=mul(rxJ,1/Ia);
+    R.Ecube=dot(J,J)/(2*R.Mafter)+dot(rxJ,rxJ)/(2*Ia);
+  }
+  R.Eout=0.5*R.mOut*dot(R.vOut,R.vOut)+(R.plug?0.5*R.plug.m*R.plug.v*R.plug.v:0);
+  R.Ediss=Math.max(0,E0-R.Eout-R.Ecube);
+  const Vcm=len(R.Vc);
+  R.slide = Vcm>0 && P.mu>0 && P.g>0 ? Vcm*Vcm/(2*P.mu*P.g) : (Vcm>0?Infinity:0);
+
+  // Zeitreihe ausdünnen
+  const n=T.length, stride=Math.max(1,Math.ceil(n/1200)), keep=[];
+  for(let i=0;i<n;i+=stride) keep.push(i);
+  if(keep[keep.length-1]!==n-1) keep.push(n-1);
+  const pick=arr=>Float64Array.from(keep,i=>arr[i]);
+  R.s={t:pick(T),v:pick(VV),u:pick(UU),L:pick(LL),P:pick(PP),Dc:pick(DC),sig:pick(SG)};
+  R.sigMax=Math.max(...R.s.sig,1);
+  R.tTot=R.tEnd+R.tTail;
+
+  // Zeitlupenfaktor für den Nachlauf
+  const snap=x=>{for(const k of [1,0.1,0.01,0.001,1e-4]) if(k<=x) return k; return 1e-5;};
+  let kRaw = Vcm>1e-6? 3*a/Vcm : 1;
+  const vo=len(R.vOut);
+  if(R.mOut>0 && vo>0 && vo<60) kRaw=Math.min(kRaw, 3*a/vo);
+  R.kAfter=snap(Math.min(1,kRaw));
+  const stopT = Vcm>0 && P.mu*P.g>0 ? Vcm/(P.mu*P.g) : 1;
+  R.afterDisp = clamp(stopT/R.kAfter*1.3, 2.5, 12);
+  return R;
+}
+
+/* =========================================================================
+   Formatierung
+   ========================================================================= */
+function nf(x,d=3){ if(!isFinite(x)) return '∞'; if(Math.abs(x)<1e-12) return '0'; return Number(x).toLocaleString('de-DE',{maximumSignificantDigits:d}); }
+const fMass=kg=>kg<1? nf(kg*1000)+' g' : nf(kg)+' kg';
+const fE=J=>J>=1e6? nf(J/1e6)+' MJ' : J>=1e3? nf(J/1e3)+' kJ' : nf(J)+' J';
+const fT=s=>s<1e-3? nf(s*1e6)+' µs' : s<1? nf(s*1e3)+' ms' : nf(s)+' s';
+const fL=m=>!isFinite(m)?'∞': m<1? nf(m*1000)+' mm' : nf(m)+' m';
+const fP=Pa=>nf(Pa/1e9)+' GPa';
+const fV=v=>nf(v)+' m/s';
+
+/* =========================================================================
+   Parameter-Oberfläche
+   ========================================================================= */
+const SCHEMA=[
+ {title:'Projektil', items:[
+  {id:'mat',type:'select',label:'Werkstoff',opts:Object.entries(MATS).map(([k,m])=>[k,m.name])},
+  {id:'shape',type:'select',label:'Form',opts:[['flat','Langstab, flache Stirn'],['ogive','Langstab, ogivale Spitze (CRH 3)'],['sphere','Kugel']]},
+  {id:'D',label:'Durchmesser D',unit:'mm',min:1,max:120,step:0.1,log:true},
+  {id:'L',label:'Länge L',unit:'mm',min:2,max:900,step:0.5,log:true},
+  {id:'rhoP',label:'Dichte ρ<sub>p</sub>',unit:'kg/m³',min:1000,max:22000,step:10},
+  {id:'YP',label:'Fließgrenze Y<sub>p</sub> (dyn.)',unit:'GPa',min:0.01,max:8,step:0.01,log:true},
+  {id:'EP',label:'E-Modul E<sub>p</sub>',unit:'GPa',min:5,max:700,step:1,adv:true},
+  {id:'nuP',label:'Querkontraktionszahl ν<sub>p</sub>',unit:'',min:0.1,max:0.49,step:0.01,adv:true},
+  {id:'C0P',label:'Hugoniot c<sub>0</sub>',unit:'m/s',min:1000,max:8000,step:10,adv:true},
+  {id:'SP',label:'Hugoniot s',unit:'',min:0.8,max:2.5,step:0.01,adv:true},
+ ]},
+ {title:'Schuss', items:[
+  {id:'v0',label:'Geschwindigkeit v<sub>0</sub>',unit:'m/s',min:5,max:6000,step:1,log:true},
+  {id:'theta',label:'Winkel θ zur Flächennormalen',unit:'°',min:0,max:85,step:0.5},
+  {id:'offY',label:'Treffpunkt vertikal (von Mitte)',unit:'mm',min:-30,max:30,step:0.5},
+  {id:'offZ',label:'Treffpunkt seitlich (von Mitte)',unit:'mm',min:-30,max:30,step:0.5},
+ ]},
+ {title:'Wolframwürfel', items:[
+  {id:'a',label:'Kantenlänge a',unit:'mm',min:5,max:300,step:1,log:true},
+  {id:'rhoT',label:'Dichte ρ<sub>t</sub>',unit:'kg/m³',min:15000,max:19350,step:10},
+  {id:'YT',label:'Fließgrenze Y<sub>t</sub> (dyn.)',unit:'GPa',min:0.3,max:5,step:0.01},
+  {id:'RtMan',type:'check',label:'Eindringwiderstand R<sub>t</sub> manuell setzen'},
+  {id:'Rt',label:'Eindringwiderstand R<sub>t</sub>',unit:'GPa',min:0.5,max:20,step:0.05},
+  {id:'ET',label:'E-Modul E<sub>t</sub>',unit:'GPa',min:150,max:420,step:1,adv:true},
+  {id:'nuT',label:'Querkontraktionszahl ν<sub>t</sub>',unit:'',min:0.1,max:0.45,step:0.01,adv:true},
+  {id:'C0T',label:'Hugoniot c<sub>0</sub>',unit:'m/s',min:2000,max:6000,step:1,adv:true},
+  {id:'ST',label:'Hugoniot s',unit:'',min:0.8,max:2.5,step:0.001,adv:true},
+ ]},
+ {title:'Lagerung & Umgebung', items:[
+  {id:'mount',type:'select',label:'Lagerung',opts:[['free','Frei liegend auf Stahlplatte'],['fixed','Fest eingespannt']]},
+  {id:'mu',label:'Reibwert μ Würfel/Unterlage',unit:'',min:0,max:1,step:0.01},
+  {id:'g',label:'Erdbeschleunigung g',unit:'m/s²',min:0,max:30,step:0.01},
+ ]},
+];
+const P={...BASE};
+const CTL={};
+const toPos=(c,v)=>c.log? Math.log(v/c.min)/Math.log(c.max/c.min)*1000 : (v-c.min)/(c.max-c.min)*1000;
+const fromPos=(c,p)=>{let v=c.log? c.min*Math.pow(c.max/c.min,p/1000) : c.min+(c.max-c.min)*p/1000; const s=c.step; v=Math.round(v/s)*s; return +v.toFixed(6);};
+
+function buildControls(){
+  const root=document.getElementById('params');
+  for(const g of SCHEMA){
+    const panel=document.createElement('div'); panel.className='panel';
+    panel.innerHTML=`<h2>${g.title}</h2>`;
+    const body=document.createElement('div'); body.className='pbody'; panel.appendChild(body);
+    let advBody=null;
+    for(const c of g.items){
+      let host=body;
+      if(c.adv){
+        if(!advBody){ const det=document.createElement('details'); det.className='adv'; det.innerHTML='<summary>Weitere Werkstoffkennwerte</summary>'; advBody=document.createElement('div'); advBody.className='pbody'; det.appendChild(advBody); body.appendChild(det);}
+        host=advBody;
+      }
+      const w=document.createElement('div');
+      if(c.type==='select'){
+        w.className='ctl sel';
+        w.innerHTML=`<label for="c_${c.id}">${c.label}</label><select id="c_${c.id}">${c.opts.map(([k,n])=>`<option value="${k}">${n}</option>`).join('')}</select>`;
+        const s=w.querySelector('select');
+        s.addEventListener('change',()=>{ onSelect(c.id,s.value); });
+        CTL[c.id]={c,el:w,sel:s};
+      } else if(c.type==='check'){
+        w.className='ctl chk';
+        w.innerHTML=`<input type="checkbox" id="c_${c.id}"><label for="c_${c.id}">${c.label}</label>`;
+        const cb=w.querySelector('input');
+        cb.addEventListener('change',()=>{ P[c.id]=cb.checked; if(cb.checked && CTL.Rt){ P.Rt=+(lastR? lastR.RtAuto/1e9:6).toFixed(2);} syncAll(); schedule(); });
+        CTL[c.id]={c,el:w,cb};
+      } else {
+        w.className='ctl';
+        w.innerHTML=`<label for="c_${c.id}">${c.label}</label><span class="nbox"><input type="number" id="c_${c.id}" min="${c.min}" max="${c.max}" step="${c.step}"><span class="unit">${c.unit}</span></span><input type="range" id="r_${c.id}" min="0" max="1000" step="1" aria-label="${c.label.replace(/<[^>]+>/g,'')}">`;
+        const num=w.querySelector('input[type=number]'), rng=w.querySelector('input[type=range]');
+        rng.addEventListener('input',()=>{ P[c.id]=fromPos(c,+rng.value); num.value=P[c.id]; onValue(c.id); });
+        num.addEventListener('change',()=>{ let v=+num.value; if(!isFinite(v)) v=P[c.id]; v=clamp(v,c.min,c.max); P[c.id]=v; num.value=v; rng.value=toPos(c,v); onValue(c.id); });
+        CTL[c.id]={c,el:w,num,rng};
+      }
+      host.appendChild(w);
+    }
+    root.appendChild(panel);
+  }
+}
+function onSelect(id,val){
+  P[id]=val;
+  if(id==='mat') Object.assign(P, matVals(val));
+  syncAll(); schedule();
+}
+function onValue(id){
+  if(id==='a') updateOffsetRanges();
+  if(['rhoP','YP','EP','nuP','C0P','SP'].includes(id)) markCustomMat();
+  syncDisabled(); schedule();
+}
+function markCustomMat(){
+  const m=MATS[P.mat]; const same=m && m.rho===P.rhoP && m.Y===P.YP && m.E===P.EP && m.nu===P.nuP && m.C0===P.C0P && m.S===P.SP;
+  const s=CTL.mat.sel; const o=s.querySelector('option[value="'+P.mat+'"]');
+  if(o) o.textContent = MATS[P.mat].name + (same?'':' (angepasst)');
+}
+function updateOffsetRanges(){
+  const lim=Math.max(0.5, Math.floor((P.a/2-0.5)*2)/2);
+  for(const id of ['offY','offZ']){ const c=CTL[id].c; c.min=-lim; c.max=lim; P[id]=clamp(P[id],-lim,lim); CTL[id].num.min=-lim; CTL[id].num.max=lim; }
+  for(const id of ['offY','offZ']) setCtl(id);
+}
+function setCtl(id){
+  const k=CTL[id]; if(!k) return;
+  if(k.sel) k.sel.value=P[id];
+  else if(k.cb) k.cb.checked=!!P[id];
+  else { k.num.value=P[id]; k.rng.value=toPos(k.c,P[id]); }
+}
+function syncDisabled(){
+  const dis=(id,on)=>{const k=CTL[id]; if(!k) return; k.el.classList.toggle('disabled',on); (k.num||k.sel||k.cb).disabled=on; if(k.rng) k.rng.disabled=on;};
+  dis('L', P.shape==='sphere');
+  dis('Rt', !P.RtMan);
+  dis('mu', P.mount==='fixed');
+}
+function syncAll(){ updateOffsetRanges(); for(const id in CTL) setCtl(id); markCustomMat(); syncDisabled(); }
+
+/* =========================================================================
+   3D-Szene
+   ========================================================================= */
+const view=document.getElementById('view');
+let renderer;
+try{
+  renderer=new THREE.WebGLRenderer({antialias:true});
+}catch(err){
+  view.insertAdjacentHTML('beforeend','<div class="err">WebGL ist in diesem Browser nicht verfügbar. Die Berechnung und die Diagramme funktionieren trotzdem.</div>');
+}
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x0a0c0f);
+scene.fog=new THREE.Fog(0x0a0c0f,100,1000);
+const camera=new THREE.PerspectiveCamera(40,1,0.05,50000);
+let controls=null;
+if(renderer){
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.localClippingEnabled=true;
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure=1.0;
+  renderer.outputColorSpace=THREE.SRGBColorSpace;
+  view.prepend(renderer.domElement);
+  const pm=new THREE.PMREMGenerator(renderer);
+  scene.environment=pm.fromScene(new RoomEnvironment(renderer),0.04).texture;
+  controls=new OrbitControls(camera,renderer.domElement);
+  controls.enableDamping=true; controls.dampingFactor=0.08;
+}
+scene.add(new THREE.HemisphereLight(0x9fb3c8,0x14100c,0.35));
+const key=new THREE.DirectionalLight(0xffffff,1.6);
+key.castShadow=true; key.shadow.mapSize.set(2048,2048); key.shadow.bias=-0.0004;
+scene.add(key); scene.add(key.target);
+const flash=new THREE.PointLight(0xffa24a,0,0,2); scene.add(flash);
+
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(1,1), new THREE.MeshStandardMaterial({color:0x1d2227,metalness:0.5,roughness:0.6}));
+ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
+let grid=null;
+
+// Materialien
+const matW=new THREE.MeshStandardMaterial({color:0xaeb2b8,metalness:1,roughness:0.34});
+const matCap=new THREE.MeshBasicMaterial({color:0x5a6068,side:THREE.BackSide});
+const matCav=new THREE.MeshStandardMaterial({color:0x8d7f72,metalness:0.85,roughness:0.5,side:THREE.DoubleSide});
+const matProj=new THREE.MeshStandardMaterial({color:0x7f838a,metalness:0.9,roughness:0.35});
+const matHead=new THREE.MeshStandardMaterial({color:0x9a7a5c,metalness:0.7,roughness:0.5,emissive:0x3a1400,emissiveIntensity:0.6});
+const matMark=new THREE.MeshBasicMaterial({color:0x1b1d20,transparent:true,opacity:0.55,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2});
+
+const cubeGroup=new THREE.Group(); scene.add(cubeGroup);
+let faceMesh=null, capMesh=null, cavMesh=null, markMesh=null, plugMesh=null;
+const projGroup=new THREE.Group(); cubeGroup.add(projGroup);
+let bodyMesh, noseMesh, sphMesh, headMesh;
+
+// Clipping-Ebenen (lokal → Welt pro Frame)
+const secLocal=new THREE.Plane(), secWorld=new THREE.Plane();
+const boxLocal=FACES.map(()=>new THREE.Plane()), boxWorld=FACES.map(()=>new THREE.Plane());
+
+// Partikel
+const PMAX=1400;
+const pGeo=new THREE.BufferGeometry();
+const pPos=new Float32Array(PMAX*3), pCol=new Float32Array(PMAX*3);
+pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));
+pGeo.setAttribute('color',new THREE.BufferAttribute(pCol,3));
+const pMat=new THREE.PointsMaterial({size:0.1,vertexColors:true,transparent:true,opacity:1,depthWrite:false});
+const points=new THREE.Points(pGeo,pMat); points.frustumCulled=false; scene.add(points);
+let parts=[];
+
+const cm=x=>x*100; // m → Szeneneinheit (cm)
+
+function cubeGeometry(aCm, holes){
+  const h=aCm/2, geos=[];
+  for(let f=0;f<6;f++){
+    const F=FACES[f];
+    const shape=new THREE.Shape();
+    shape.moveTo(-h,-h); shape.lineTo(h,-h); shape.lineTo(h,h); shape.lineTo(-h,h); shape.lineTo(-h,-h);
+    for(const H of holes){
+      if(H.face!==f) continue;
+      let {cx,cy,r1,r2}=H;
+      const rm=Math.max(r1,r2), lim=0.97*h;
+      if(Math.abs(cx)>lim || Math.abs(cy)>lim) continue;
+      const sc=Math.min(1,(lim-Math.abs(cx))/rm,(lim-Math.abs(cy))/rm);
+      if(sc<0.05) continue;
+      const path=new THREE.Path();
+      path.absellipse(cx,cy,r1*sc,r2*sc,0,Math.PI*2,false,H.ang);
+      shape.holes.push(path);
+    }
+    const g=new THREE.ShapeGeometry(shape,40);
+    const pos=g.attributes.position, nor=new Float32Array(pos.count*3);
+    for(let i=0;i<pos.count;i++){
+      const x=pos.getX(i), y=pos.getY(i);
+      pos.setXYZ(i, F.n[0]*h+F.u[0]*x+F.v[0]*y, F.n[1]*h+F.u[1]*x+F.v[1]*y, F.n[2]*h+F.u[2]*x+F.v[2]*y);
+      nor[i*3]=F.n[0]; nor[i*3+1]=F.n[1]; nor[i*3+2]=F.n[2];
+    }
+    g.setAttribute('normal',new THREE.BufferAttribute(nor,3));
+    geos.push(g);
+  }
+  const m=mergeGeometries(geos); geos.forEach(g=>g.dispose());
+  return m;
+}
+function holeOn(R,f,sM,rM){
+  const F=FACES[f], h=cm(R.h);
+  const X=add(mul(R.E,100), mul(R.d,cm(sM)));
+  const rel=sub(X, mul(F.n,h));
+  const cx=dot(rel,F.u), cy=dot(rel,F.v);
+  const dn=Math.abs(dot(R.d,F.n)), dp=sub(R.d, mul(F.n,dot(R.d,F.n)));
+  let ang=0, r1=cm(rM), r2=cm(rM);
+  if(len(dp)>1e-6){ ang=Math.atan2(dot(dp,F.v),dot(dp,F.u)); r1=cm(rM)/Math.max(dn,0.08); }
+  return {face:f,cx,cy,r1,r2,ang};
+}
+let holeKey='';
+function setHoles(R, state){ // 0 keine, 1 Eintritt, 2 Eintritt+Austritt
+  const k=state+'|'+R.id; if(k===holeKey) return; holeKey=k;
+  const holes=[];
+  if(state>=1 && R.prof.length) holes.push(holeOn(R,0,0,R.prof[0][1]));
+  if(state>=2){ const r=R.plug? R.plug.r : R.prof.length? R.prof[R.prof.length-1][1] : R.D/2; holes.push(holeOn(R,R.exitFace,R.hLOS,r)); }
+  const g=cubeGeometry(cm(R.a), holes);
+  faceMesh.geometry.dispose(); faceMesh.geometry=g; capMesh.geometry=g;
+}
+let cavKey='';
+function setCavity(R, Pcur, open){
+  const k=R.id+'|'+Pcur.toFixed(7)+'|'+open;
+  if(k===cavKey) return; cavKey=k;
+  if(cavMesh){ cavMesh.geometry.dispose(); cavMesh.visible=false; }
+  if(!R.prof.length || Pcur<=1e-6){ return; }
+  const pr=R.prof, r0=pr[0][1];
+  const pts=[];
+  const y0=-(r0*Math.tan(R.th)+0.05*R.a+1e-4);
+  pts.push(new THREE.Vector2(cm(r0),cm(y0)));
+  const rAt=s=>{ let i=0; while(i<pr.length-1 && pr[i+1][0]<s) i++; if(i>=pr.length-1) return pr[pr.length-1][1]; const [s0,a0]=pr[i],[s1,a1]=pr[i+1]; return a0+(a1-a0)*clamp((s-s0)/Math.max(s1-s0,1e-12),0,1); };
+  if(open){
+    const step=Math.max(1,Math.floor(pr.length/60));
+    for(let i=0;i<pr.length;i+=step) pts.push(new THREE.Vector2(cm(pr[i][1]),cm(pr[i][0])));
+    const rl=R.plug? R.plug.r : pr[pr.length-1][1];
+    pts.push(new THREE.Vector2(cm(rl),cm(R.hLOS)));
+    pts.push(new THREE.Vector2(cm(rl),cm(R.hLOS+rl*Math.tan(R.th)+0.1*R.a+R.a)));
+  } else {
+    const rEnd=rAt(Pcur), cap=Math.min(Pcur,rEnd)*0.7, sCyl=Pcur-cap;
+    const n=40;
+    for(let i=1;i<=n;i++){ const s=sCyl*i/n; if(s<=0) break; pts.push(new THREE.Vector2(cm(rAt(s)),cm(s))); }
+    for(let i=1;i<=10;i++){ const ph=i/10*Math.PI/2; pts.push(new THREE.Vector2(cm(rEnd*Math.cos(ph))+1e-5*(i<10),cm(sCyl+cap*Math.sin(ph)))); }
+  }
+  const g=new THREE.LatheGeometry(pts,40);
+  if(!cavMesh){ cavMesh=new THREE.Mesh(g,matCav); cubeGroup.add(cavMesh); }
+  else cavMesh.geometry=g;
+  cavMesh.visible=true;
+  cavMesh.position.set(...mul(R.E,100));
+  cavMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), new THREE.Vector3(...R.d));
+}
+
+function unitCyl(rt=1,rb=1){ const g=new THREE.CylinderGeometry(rt,rb,1,40,1); g.translate(0,-0.5,0); return g; }
+function buildProjectile(R){
+  projGroup.clear();
+  matProj.color.setHex((MATS[R.P.mat]||MATS.wha).color);
+  const r=cm(R.D/2);
+  bodyMesh=new THREE.Mesh(unitCyl(),matProj); bodyMesh.castShadow=true; bodyMesh.scale.set(r,1,r); projGroup.add(bodyMesh);
+  noseMesh=null; sphMesh=null;
+  if(R.P.shape==='ogive'){
+    const ln=cm(R.ln), rho=2*PSI*r, pts=[];
+    for(let i=0;i<=24;i++){ const x=ln*i/24; const rr=Math.sqrt(Math.max(0,rho*rho-(ln-x)*(ln-x)))+r-rho; pts.push(new THREE.Vector2(Math.max(rr,0),x-ln)); }
+    pts[pts.length-1].x=0;
+    noseMesh=new THREE.Mesh(new THREE.LatheGeometry(pts.reverse(),40),matProj); noseMesh.castShadow=true; projGroup.add(noseMesh);
+  }
+  if(R.P.shape==='sphere'){
+    sphMesh=new THREE.Mesh(new THREE.SphereGeometry(r,40,24),matProj); sphMesh.castShadow=true; projGroup.add(sphMesh);
+    bodyMesh.visible=false;
+  }
+  headMesh=new THREE.Mesh(unitCyl(1,0.8),matHead); headMesh.visible=false; projGroup.add(headMesh);
+  if(plugMesh){ cubeGroup.remove(plugMesh); plugMesh.geometry.dispose(); plugMesh=null; }
+  if(R.plug){
+    plugMesh=new THREE.Mesh(unitCyl(),matW); plugMesh.castShadow=true;
+    plugMesh.scale.set(cm(R.plug.r),cm(R.plug.h),cm(R.plug.r)); plugMesh.visible=false; cubeGroup.add(plugMesh);
+  }
+}
+// Projektil platzieren: tip (lokal, cm), Richtung, Zustand
+function poseProjectile(tip, dir, st){
+  projGroup.position.set(tip[0],tip[1],tip[2]);
+  projGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), new THREE.Vector3(...dir).normalize());
+  const R=cur, r=cm(R.D/2);
+  if(R.P.shape==='sphere'){
+    const sy=st.intact?1:clamp(st.L/R.Leff,0.02,1);
+    sphMesh.scale.set(1,sy,1); sphMesh.position.y=-r*sy;
+    sphMesh.visible=st.L>0;
+  } else {
+    const ln=st.intact? cm(R.ln):0;
+    const Lb= st.intact? cm(R.Lg-R.ln) : cm(st.L);
+    bodyMesh.visible=Lb>1e-4; bodyMesh.scale.y=Math.max(Lb,1e-4); bodyMesh.position.y=-ln;
+    if(noseMesh) noseMesh.visible=st.intact;
+  }
+  if(st.headR>0){
+    headMesh.visible=true; headMesh.scale.set(cm(st.headR),Math.max(cm(st.headH),1e-3),cm(st.headR)); headMesh.position.y=0;
+  } else headMesh.visible=false;
+}
+
+/* ---------- Partikel (deterministisch) ---------- */
+function rng(seed){ return ()=>{ seed|=0; seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+function coneDir(axis, half, rnd){
+  const a=new THREE.Vector3(...axis).normalize();
+  const tmp=Math.abs(a.y)<0.9? new THREE.Vector3(0,1,0):new THREE.Vector3(1,0,0);
+  const b1=new THREE.Vector3().crossVectors(a,tmp).normalize(), b2=new THREE.Vector3().crossVectors(a,b1);
+  const ct=1-rnd()*(1-Math.cos(half)), s=Math.sqrt(1-ct*ct), ph=rnd()*Math.PI*2;
+  return a.multiplyScalar(ct).add(b1.multiplyScalar(s*Math.cos(ph))).add(b2.multiplyScalar(s*Math.sin(ph)));
+}
+function genParticles(R){
+  const rnd=rng(12345), out=[];
+  const pc=new THREE.Color((MATS[R.P.mat]||MATS.wha).color), hot=new THREE.Color(0xffa24a), wc=new THREE.Color(0xc6c9ce);
+  const Ecm=mul(R.E,100), s=R.s, n=s.t.length;
+  const col=()=>rnd()<0.35? hot : pc;
+  if(R.kind==='penetration' || R.kind==='perforation' || R.kind==='defeat'){
+    const budget = R.kind==='defeat'? 700 : 600;
+    const Ltot=R.Leff-(R.Lres||0);
+    if(Ltot>0){
+      let acc=0; const q=Ltot/budget;
+      for(let i=1;i<n && out.length<budget;i++){
+        acc+=Math.max(0,s.L[i-1]-s.L[i]);
+        while(acc>=q && out.length<budget){
+          acc-=q;
+          const t0=s.t[i-1]+(s.t[i]-s.t[i-1])*rnd(), v=s.v[i], u=s.u[i];
+          let dir, sp;
+          if(u>0){ dir=coneDir([-1,0,0],0.75,rnd); sp=(0.15+0.45*rnd())*Math.max(v-u,0.3*v); }
+          else { const ph=rnd()*Math.PI*2; dir=new THREE.Vector3(-0.12-0.2*rnd(),Math.cos(ph),Math.sin(ph)).normalize(); sp=(0.3+0.8*rnd())*v; }
+          const jit=cm(R.Dc0/2)*0.6;
+          out.push({t0, p:[Ecm[0]-0.01, Ecm[1]+(rnd()-0.5)*jit, Ecm[2]+(rnd()-0.5)*jit], v:[dir.x*cm(sp),dir.y*cm(sp),dir.z*cm(sp)], c:col()});
+        }
+      }
+    }
+  }
+  if(R.kind==='perforation'){
+    const X=add(Ecm, mul(R.d,cm(R.hLOS))), vr=Math.max(R.vRes||0,50);
+    for(let i=0;i<260;i++){
+      const dir=coneDir(R.d,0.45,rnd), sp=(0.35+0.65*rnd())*vr;
+      out.push({t0:R.tEnd*(0.97+0.03*rnd()), p:X.slice(), v:[dir.x*cm(sp),dir.y*cm(sp),dir.z*cm(sp)], c: rnd()<0.6? wc : (rnd()<0.5?hot:pc)});
+    }
+  }
+  if(R.kind==='ricochet'){
+    const vo=R.vOut, sp0=len(vo);
+    for(let i=0;i<180;i++){
+      const dir=coneDir(vo,0.35,rnd), sp=(0.25+0.6*rnd())*Math.max(sp0,0.3*R.v0);
+      out.push({t0:R.tc*rnd(), p:Ecm.slice(), v:[dir.x*cm(sp),dir.y*cm(sp),dir.z*cm(sp)], c:rnd()<0.5?hot:pc});
+    }
+  }
+  return out.slice(0,PMAX);
+}
+function drawParticles(tReal, fade){
+  const cp=points.position;
+  let k=0;
+  const g=cm(cur.P.g);
+  for(const q of parts){
+    const dt=tReal-q.t0;
+    if(dt<0){ pPos[k*3]=0;pPos[k*3+1]=-1e6;pPos[k*3+2]=0; }
+    else{
+      let x=q.p[0]+q.v[0]*dt, y=q.p[1]+q.v[1]*dt-0.5*g*dt*dt, z=q.p[2]+q.v[2]*dt;
+      if(y+cp.y<0) y=-cp.y+0.01;
+      pPos[k*3]=x;pPos[k*3+1]=y;pPos[k*3+2]=z;
+    }
+    pCol[k*3]=q.c.r;pCol[k*3+1]=q.c.g;pCol[k*3+2]=q.c.b; k++;
+  }
+  pGeo.setDrawRange(0,k);
+  pGeo.attributes.position.needsUpdate=true; pGeo.attributes.color.needsUpdate=true;
+  pMat.opacity=fade;
+}
+
+/* ---------- Starrkörper-Nachlauf (Rapier, SI-Einheiten) ---------- */
+let world=null, cubeBody=null, fixedH=1/1000, simAcc=0;
+function setupWorld(R){
+  if(world){ world.free(); world=null; cubeBody=null; }
+  if(!rapierOK || R.P.mount==='fixed') return;
+  world=new RAPIER.World({x:0,y:-R.P.g,z:0});
+  const gh=Math.max(R.a*2000,10);
+  world.createCollider(RAPIER.ColliderDesc.cuboid(gh,1,gh).setTranslation(0,-1,0).setFriction(R.P.mu).setRestitution(0.05));
+  cubeBody=world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setTranslation(0,R.h,0).setCcdEnabled(true));
+  world.createCollider(RAPIER.ColliderDesc.cuboid(R.h,R.h,R.h).setDensity(R.Mafter/(R.a**3)).setFriction(R.P.mu).setRestitution(0.05), cubeBody);
+  const vmax=Math.max(len(R.Vc), len(R.omega)*R.h, 1e-3);
+  fixedH=clamp(0.03*R.h/vmax,2e-6,1/600);
+  world.timestep=fixedH;
+}
+
+/* =========================================================================
+   Aufbau & Ablauf
+   ========================================================================= */
+let cur=null, lastR=null, rid=0;
+const APPROACH=1.1, IMPACT=4.2;
+const anim={mode:'end', playing:false, speed:1, tA:0, tI:0, tAfter:0, tReal:0, free:null};
+
+function rebuild(R, keepCam){
+  cur=R; lastR=R; R.id=++rid;
+  const aCm=cm(R.a), h=aCm/2;
+  holeKey=''; cavKey='';
+  if(!faceMesh){
+    const g=cubeGeometry(aCm,[]);
+    faceMesh=new THREE.Mesh(g,matW); faceMesh.castShadow=true; faceMesh.receiveShadow=true; cubeGroup.add(faceMesh);
+    capMesh=new THREE.Mesh(g,matCap); cubeGroup.add(capMesh);
+  }
+  setHoles(R,0);
+  if(cavMesh){ cavMesh.visible=false; }
+  // Markierung für Abpraller
+  if(markMesh){ cubeGroup.remove(markMesh); markMesh.geometry.dispose(); markMesh=null; }
+  if(R.kind==='ricochet'){
+    const g=new THREE.CircleGeometry(1,40); markMesh=new THREE.Mesh(g,matMark);
+    const r=cm(R.D/2); markMesh.scale.set(Math.min(r/Math.max(Math.cos(R.th),0.15),h*0.9),r,1);
+    markMesh.rotation.y=-Math.PI/2; markMesh.position.set(-h-0.002*aCm,cm(R.E[1]),cm(R.E[2]));
+    markMesh.visible=false; cubeGroup.add(markMesh);
+  }
+  buildProjectile(R);
+  parts=genParticles(R);
+  pMat.size=Math.max(0.02*aCm,0.03);
+  points.position.set(0,h,0);
+  // Boden & Licht
+  const gs=aCm*400; ground.scale.set(gs,gs,1);
+  scene.fog.near=aCm*6; scene.fog.far=aCm*60;
+  flash.distance=aCm*2.5;
+  if(grid){ scene.remove(grid); grid.geometry.dispose(); }
+  const step=Math.pow(10,Math.round(Math.log10(aCm)));
+  grid=new THREE.GridHelper(step*400,400,0x3a434c,0x242a31); grid.position.y=0.002*aCm; scene.add(grid);
+  key.position.set(-aCm*2.5,aCm*5,aCm*3.5); key.target.position.set(0,h,0);
+  const sc=key.shadow.camera; sc.left=-aCm*4; sc.right=aCm*4; sc.top=aCm*4; sc.bottom=-aCm*4; sc.near=0.1; sc.far=aCm*20; sc.updateProjectionMatrix();
+  // Clipping
+  const nS=[-Math.sin(R.th),0,Math.cos(R.th)], Ec=mul(R.E,100);
+  secLocal.set(new THREE.Vector3(-nS[0],-nS[1],-nS[2]), dot(nS,Ec));
+  FACES.forEach((F,i)=>boxLocal[i].set(new THREE.Vector3(-F.n[0],-F.n[1],-F.n[2]),h));
+  applySection();
+  setupWorld(R);
+  resetCube();
+  if(!keepCam) fitCamera(R);
+  resize();
+}
+function fitCamera(R){
+  const aCm=cm(R.a), h=aCm/2;
+  camera.position.set(-aCm*2.1, aCm*1.35, aCm*2.6);
+  camera.near=aCm*0.01; camera.far=aCm*400; camera.updateProjectionMatrix();
+  if(controls){ controls.target.set(-aCm*0.15,h,0); controls.update(); }
+}
+function resetCube(){
+  const h=cm(cur.h);
+  cubeGroup.position.set(0,h,0); cubeGroup.quaternion.identity();
+  if(cubeBody){ cubeBody.setTranslation({x:0,y:cur.h,z:0},true); cubeBody.setRotation({x:0,y:0,z:0,w:1},true); cubeBody.setLinvel({x:0,y:0,z:0},true); cubeBody.setAngvel({x:0,y:0,z:0},true); }
+  simAcc=0;
+  if(projGroup.parent!==cubeGroup) cubeGroup.add(projGroup);
+  if(plugMesh && plugMesh.parent!==cubeGroup) cubeGroup.add(plugMesh);
+  projGroup.visible=true;
+}
+function applySection(){
+  const on=document.getElementById('optSection').checked;
+  matW.clippingPlanes = on? [secWorld] : [];
+  matCap.clippingPlanes = on? [secWorld] : [];
+  matCav.clippingPlanes = on? [...boxWorld, secWorld] : [...boxWorld];
+  matW.needsUpdate=matCap.needsUpdate=matCav.needsUpdate=true;
+}
+function updateClipWorld(){
+  cubeGroup.updateMatrixWorld(true);
+  secWorld.copy(secLocal).applyMatrix4(cubeGroup.matrixWorld);
+  boxLocal.forEach((p,i)=>boxWorld[i].copy(p).applyMatrix4(cubeGroup.matrixWorld));
+}
+
+function sampleAt(t){
+  const s=cur.s, T=s.t, n=T.length;
+  if(t<=T[0]) return {v:s.v[0],u:s.u[0],L:s.L[0],P:s.P[0],Dc:s.Dc[0],sig:s.sig[0]};
+  if(t>=T[n-1]) return {v:s.v[n-1],u:s.u[n-1],L:s.L[n-1],P:s.P[n-1],Dc:s.Dc[n-1],sig:s.sig[n-1]};
+  let lo=0, hi=n-1; while(hi-lo>1){ const m=(lo+hi)>>1; if(T[m]<=t) lo=m; else hi=m; }
+  const f=(t-T[lo])/Math.max(T[hi]-T[lo],1e-30), L=(k)=>s[k][lo]+(s[k][hi]-s[k][lo])*f;
+  return {v:L('v'),u:L('u'),L:L('L'),P:L('P'),Dc:L('Dc'),sig:L('sig')};
+}
+function splatR(R,L){ const Ve=R.A*Math.max(0,R.Leff-L); if(Ve<=0) return 0; const hs=R.D/4; return Math.min(Math.max(Math.sqrt(Ve/(Math.PI*hs)),R.D/2),R.a*0.7); }
+
+// Zustand während des Einschlags (tI in s, Realzeit)
+function renderImpact(tI){
+  const R=cur, Ec=mul(R.E,100);
+  resetCubeVisualOnly();
+  const tE=R.tEnd, st=sampleAt(Math.min(tI,tE));
+  const pen=R.kind==='penetration'||R.kind==='perforation';
+  if(R.kind==='elastic'){
+    setHoles(R,0); setCavity(R,0,false);
+    let tip;
+    if(tI<=tE) tip=Ec; else { const dt=tI-tE; tip=add(Ec,mul(R.vOut,cm(dt))); }
+    poseProjectile(tip,R.d,{intact:true,L:R.Leff,headR:0});
+  } else if(R.kind==='ricochet'){
+    setHoles(R,0); setCavity(R,0,false);
+    if(markMesh) markMesh.visible=tI>0;
+    const f=clamp(tI/tE,0,1), dOut=len(R.vOut)>1e-9? mul(R.vOut,1/len(R.vOut)) : R.d;
+    const dir=new THREE.Vector3(...R.d).lerp(new THREE.Vector3(...dOut),f).normalize();
+    let tip=Ec; if(tI>tE) tip=add(Ec,mul(R.vOut,cm(tI-tE)));
+    poseProjectile(tip,[dir.x,dir.y,dir.z],{intact:true,L:R.Leff,headR:0});
+  } else {
+    const perfShown = R.perforated && tI>=tE;
+    setHoles(R, perfShown?2 : (st.P>0?1:0));
+    setCavity(R, perfShown? R.hLOS : st.P, perfShown);
+    let tip, stt;
+    if(tI<=tE){
+      tip=add(Ec,mul(R.d,cm(st.P)));
+      const eroded=st.L<R.Leff-1e-9 || (R.eroding && tI>0);
+      const hr = !eroded? 0 : (st.u>0? st.Dc/2 : splatR(R,st.L));
+      stt={intact:!eroded && tI<=0, L:st.L, headR:hr, headH: st.u>0? Math.min(R.D*0.6,st.L+R.D*0.2): R.D/4};
+      if(R.kind==='defeat' || (st.u===0 && eroded)) stt.headH=Math.min(R.D/4, R.D);
+    } else {
+      const dt=tI-tE, last=sampleAt(tE);
+      const tipEnd=add(Ec,mul(R.d,cm(R.Pmax)));
+      tip = R.mOut>0? add(tipEnd, mul(R.vOut,cm(dt))) : tipEnd;
+      const hr = last.u>0||R.perforated? last.Dc/2 : (R.eroding? splatR(R,last.L):0);
+      stt={intact:!R.eroding, L:last.L, headR: R.Lres>0||R.kind==='defeat'? hr:0, headH: R.kind==='defeat'? R.D/4 : Math.min(R.D*0.6,last.L+R.D*0.2)};
+      if(R.kind==='defeat' && R.mOut===0) { stt.headR=splatR(R,last.L); }
+    }
+    poseProjectile(tip,R.d,stt);
+    projGroup.visible = !(stt.L<=0 && stt.headR<=0);
+    if(plugMesh){
+      if(perfShown){
+        plugMesh.visible=true;
+        const X=add(Ec,mul(R.d,cm(R.hLOS - R.plug.h + R.plug.v*(tI-tE))));
+        plugMesh.position.set(...add(X,mul(R.d,cm(R.plug.h))));
+        plugMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),new THREE.Vector3(...R.d));
+      } else plugMesh.visible=false;
+    }
+  }
+  // Blitz
+  const s=tI<=tE? sampleAt(tI).sig : 0;
+  flash.position.set(Ec[0]-cm(R.D)*1.5, Ec[1]+cm(R.h), Ec[2]);
+  flash.intensity = (R.kind==='elastic'?0:1)*Math.pow(s/R.sigMax,0.7)*cm(R.a)*cm(R.a)*1.2;
+  drawParticles(tI,1);
+}
+function resetCubeVisualOnly(){
+  const h=cm(cur.h);
+  cubeGroup.position.set(0,h,0); cubeGroup.quaternion.identity();
+  if(projGroup.parent!==cubeGroup) cubeGroup.add(projGroup);
+  if(plugMesh && plugMesh.parent!==cubeGroup) cubeGroup.add(plugMesh);
+}
+
+function startAfter(){
+  const R=cur;
+  anim.mode='after'; anim.tAfter=0; anim.tReal=0;
+  renderImpact(R.tTot);
+  resetCube();
+  if(cubeBody){
+    cubeBody.setLinvel({x:R.Vc[0],y:R.Vc[1],z:R.Vc[2]},true);
+    cubeBody.setAngvel({x:R.omega[0],y:R.omega[1],z:R.omega[2]},true);
+  }
+  // freie Körper (Projektil/Pfropfen) in Weltkoordinaten übernehmen
+  anim.free=null;
+  if(R.mOut>0 && len(R.vOut)>0){
+    scene.attach(projGroup);
+    anim.free={obj:projGroup, p0:projGroup.position.clone(), v:new THREE.Vector3(...mul(R.vOut,100)), rest:cm(R.D/2)};
+  }
+  anim.plugFree=null;
+  if(plugMesh && R.plug){
+    scene.attach(plugMesh);
+    anim.plugFree={obj:plugMesh, p0:plugMesh.position.clone(), v:new THREE.Vector3(...mul(R.d,cm(R.plug.v))), rest:cm(R.plug.h/2)};
+  }
+  flash.intensity=0;
+}
+let lastCubePos=new THREE.Vector3();
+function stepAfter(dtDisp){
+  const R=cur, dtR=dtDisp*R.kAfter;
+  anim.tReal+=dtR;
+  if(world && cubeBody){
+    simAcc+=dtR; let n=0;
+    while(simAcc>=fixedH && n<3000){ world.step(); simAcc-=fixedH; n++; }
+    if(n>=3000) simAcc=0;
+    const p=cubeBody.translation(), q=cubeBody.rotation();
+    cubeGroup.position.set(cm(p.x),cm(p.y),cm(p.z)); cubeGroup.quaternion.set(q.x,q.y,q.z,q.w);
+  }
+  const g=cm(R.P.g);
+  for(const fb of [anim.free, anim.plugFree]){
+    if(!fb) continue;
+    const t=anim.tReal;
+    const p=fb.p0.clone().addScaledVector(fb.v,t); p.y-=0.5*g*t*t;
+    if(p.y<fb.rest){ p.y=fb.rest; }
+    if(p.length()>cm(R.a)*300) fb.obj.visible=false;
+    fb.obj.position.copy(p);
+  }
+  drawParticles(R.tTot+anim.tReal, clamp(1-anim.tAfter/1.2,0,1));
+}
+
+/* ---------- HUD & Transport ---------- */
+const hudPhase=document.getElementById('hudPhase'), hudClock=document.getElementById('hudClock'), hudScale=document.getElementById('hudScale');
+const btnPlay=document.getElementById('btnPlay'), scrub=document.getElementById('scrub');
+function slowText(f){ if(f>=0.999) return 'Echtzeit'; return 'Zeitlupe 1 : '+nf(1/f,3); }
+function updateHud(){
+  const R=cur; if(!R) return;
+  if(anim.mode==='approach'){ hudPhase.textContent='Anflug'; hudClock.textContent='t = −'+fT(Math.max(0,(APPROACH-anim.tA)/APPROACH)*0.3*R.a/R.v0+1e-9).replace('−',''); hudScale.textContent='Anflug verkürzt dargestellt'; }
+  else if(anim.mode==='impact' || anim.mode==='end'){
+    const t=anim.tI;
+    hudPhase.textContent = t<=R.tEnd? (R.kind==='elastic'?'Elastischer Kontakt': R.kind==='ricochet'?'Abgleiten': 'Eindringphase') : 'Nach dem Einschlag';
+    hudClock.textContent='t = '+nf(t*1e6,4)+' µs';
+    hudScale.textContent=slowText(R.tTot/IMPACT);
+  } else {
+    hudPhase.textContent = R.P.mount==='fixed'? 'Nachlauf (Würfel fest)' : 'Nachlauf Würfel';
+    hudClock.textContent='t = '+fT(R.tTot+anim.tReal);
+    hudScale.textContent=slowText(R.kAfter);
+  }
+  btnPlay.textContent=anim.playing?'Pause':'Abspielen';
+  if(anim.mode==='impact'||anim.mode==='end') scrub.value=Math.round(anim.tI/R.tTot*1000);
+  else if(anim.mode==='approach') scrub.value=0;
+}
+function play(){
+  if(!cur) return;
+  if(anim.mode==='done'){ restart(); return; }
+  if(anim.mode==='end'){ if(anim.tI>=cur.tTot) startAfter(); else anim.mode='impact'; }
+  anim.playing=true;
+}
+function restart(){ resetCube(); anim.mode='approach'; anim.tA=0; anim.tI=0; anim.playing=true; }
+btnPlay.addEventListener('click',()=>{ if(anim.playing) anim.playing=false; else play(); });
+document.getElementById('btnRestart').addEventListener('click',restart);
+document.getElementById('speed').addEventListener('change',e=>{anim.speed=+e.target.value;});
+scrub.addEventListener('input',()=>{ if(!cur) return; anim.playing=false; resetCube(); anim.mode='end'; anim.tI=+scrub.value/1000*cur.tTot; });
+document.getElementById('optSection').addEventListener('change',applySection);
+
+function frameCamera(){
+  if(!controls) return;
+  if(anim.mode!=='after' && anim.mode!=='done'){ lastCubePos.copy(cubeGroup.position); return; }
+  if(document.getElementById('optFollow').checked){
+    const d=cubeGroup.position.clone().sub(lastCubePos);
+    camera.position.add(d); controls.target.add(d);
+  }
+  lastCubePos.copy(cubeGroup.position);
+}
+
+let lastT=performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt=Math.min(0.05,(now-lastT)/1000); lastT=now;
+  if(!cur) return;
+  const R=cur;
+  if(anim.playing){
+    const d=dt*anim.speed;
+    if(anim.mode==='approach'){ anim.tA+=d; if(anim.tA>=APPROACH){ anim.mode='impact'; anim.tI=0; } }
+    else if(anim.mode==='impact'){ anim.tI+=d*R.tTot/IMPACT; if(anim.tI>=R.tTot){ anim.tI=R.tTot; startAfter(); } }
+    else if(anim.mode==='after'){ anim.tAfter+=d; stepAfter(d); if(anim.tAfter>=R.afterDisp){ anim.mode='done'; anim.playing=false; } }
+  }
+  if(anim.mode==='approach'){
+    resetCubeVisualOnly(); setHoles(R,0); setCavity(R,0,false); if(markMesh) markMesh.visible=false; if(plugMesh) plugMesh.visible=false;
+    const f=anim.tA/APPROACH, s0=cm(1.4*R.a+0.25*R.Lg);
+    poseProjectile(add(mul(R.E,100),mul(R.d,-s0*(1-f))),R.d,{intact:true,L:R.Leff,headR:0});
+    projGroup.visible=true; flash.intensity=0; drawParticles(-1,1);
+  } else if(anim.mode==='impact'||anim.mode==='end'){
+    projGroup.visible=true;
+    renderImpact(anim.tI);
+  }
+  frameCamera();
+  updateClipWorld();
+  updateHud();
+  if(chartsDirty || anim.playing || anim.mode!==lastMode){ drawCharts(); chartsDirty=false; lastMode=anim.mode; }
+  if(controls) controls.update();
+  if(renderer) renderer.render(scene,camera);
+}
+let lastMode='';
+
+function resize(){
+  if(!renderer) return;
+  const w=view.clientWidth, h=view.clientHeight;
+  renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+  chartsDirty=true;
+}
+new ResizeObserver(resize).observe(view);
+
+/* =========================================================================
+   Diagramme
+   ========================================================================= */
+const css=getComputedStyle(document.documentElement);
+const tok=n=>css.getPropertyValue(n).trim();
+const CHARTS=[
+  {id:'chV', series:[{k:'v',name:'v Projektil',c:'--blue'},{k:'u',name:'u Eindringung',c:'--orange'}], unit:'m/s', sc:1},
+  {id:'chL', series:[{k:'L',name:'Restlänge',c:'--blue'}], unit:'mm', sc:1000},
+  {id:'chP', series:[{k:'P',name:'Eindringtiefe',c:'--blue'}], unit:'mm', sc:1000},
+  {id:'chS', series:[{k:'sig',name:'Grenzflächendruck',c:'--blue'}], unit:'GPa', sc:1e-9},
+];
+let chartsDirty=true;
+function niceTicks(lo,hi,n=4){
+  if(hi-lo<=0){ hi=lo+1; }
+  const raw=(hi-lo)/n, p=Math.pow(10,Math.floor(Math.log10(raw))), f=raw/p;
+  const st=(f<1.5?1:f<3?2:f<7?5:10)*p, out=[];
+  for(let v=Math.ceil(lo/st)*st; v<=hi+st*1e-6; v+=st) out.push(+v.toPrecision(12));
+  return {ticks:out, step:st};
+}
+function drawChart(ch){
+  const R=cur, cv=document.getElementById(ch.id); if(!R||!cv) return;
+  const dpr=devicePixelRatio||1, W=cv.clientWidth, H=cv.clientHeight;
+  if(!W||!H) return;
+  if(cv.width!==Math.round(W*dpr)||cv.height!==Math.round(H*dpr)){ cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr); }
+  const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+  const m={l:46,r:12,t:8,b:22}, pw=W-m.l-m.r, ph=H-m.t-m.b;
+  const T=R.s.t, n=T.length, tmax=R.tEnd*1e6||1;
+  let ymin=0, ymax=0;
+  for(const s of ch.series){ const a=R.s[s.k]; for(let i=0;i<n;i++){ const y=a[i]*ch.sc; if(y>ymax) ymax=y; if(y<ymin) ymin=y; } }
+  if(ymax===ymin) ymax=ymin+1;
+  const yt=niceTicks(ymin,ymax*1.05,4); ymin=Math.min(ymin,yt.ticks[0]); ymax=Math.max(yt.ticks[yt.ticks.length-1],ymax);
+  const xt=niceTicks(0,tmax,4);
+  const X=t=>m.l+t/tmax*pw, Y=y=>m.t+ph-(y-ymin)/(ymax-ymin)*ph;
+  ctx.font='11px "IBM Plex Mono", ui-monospace, monospace'; ctx.textBaseline='middle';
+  ctx.strokeStyle=tok('--line'); ctx.lineWidth=1; ctx.fillStyle=tok('--muted');
+  for(const y of yt.ticks){ if(y<ymin-1e-9||y>ymax+1e-9) continue; const py=Math.round(Y(y))+0.5; ctx.beginPath(); ctx.moveTo(m.l,py); ctx.lineTo(W-m.r,py); ctx.stroke(); ctx.textAlign='right'; ctx.fillText(nf(y,4),m.l-6,py); }
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  for(const x of xt.ticks){ if(x>tmax+1e-9) continue; const px=X(x); ctx.fillText(nf(x,4),px,H-m.b+5); }
+  // Linien
+  ch.series.forEach((s,si)=>{
+    const a=R.s[s.k], col=tok(s.c);
+    ctx.beginPath();
+    for(let i=0;i<n;i++){ const px=X(T[i]*1e6), py=Y(a[i]*ch.sc); if(i) ctx.lineTo(px,py); else ctx.moveTo(px,py); }
+    ctx.strokeStyle=col; ctx.lineWidth=2; ctx.lineJoin='round'; ctx.stroke();
+    if(ch.series.length===1){
+      ctx.lineTo(X(T[n-1]*1e6),Y(Math.max(ymin,0))); ctx.lineTo(X(T[0]*1e6),Y(Math.max(ymin,0))); ctx.closePath();
+      ctx.globalAlpha=0.12; ctx.fillStyle=col; ctx.fill(); ctx.globalAlpha=1;
+    }
+    // Endpunkt
+    ctx.beginPath(); ctx.arc(X(T[n-1]*1e6),Y(a[n-1]*ch.sc),3.5,0,Math.PI*2); ctx.fillStyle=col; ctx.fill();
+    ctx.lineWidth=2; ctx.strokeStyle=tok('--panel'); ctx.stroke();
+  });
+  // Zeitmarke
+  if((anim.mode==='impact'||anim.mode==='end') && anim.tI<=R.tEnd){
+    const px=Math.round(X(anim.tI*1e6))+0.5; ctx.strokeStyle=tok('--accent'); ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(px,m.t); ctx.lineTo(px,m.t+ph); ctx.stroke();
+  }
+  // Hover
+  if(ch.hx!=null){
+    const t=clamp((ch.hx-m.l)/pw,0,1)*tmax;
+    const px=X(t); ctx.strokeStyle=tok('--ink-2'); ctx.lineWidth=1; ctx.setLineDash([3,3]); ctx.beginPath(); ctx.moveTo(px,m.t); ctx.lineTo(px,m.t+ph); ctx.stroke(); ctx.setLineDash([]);
+    const st=sampleAt(t/1e6);
+    let html=`<div class="mono">t = ${nf(t,4)} µs</div>`;
+    for(const s of ch.series){ const y=st[s.k]*ch.sc; ctx.beginPath(); ctx.arc(px,Y(y),4,0,Math.PI*2); ctx.fillStyle=tok(s.c); ctx.fill(); ctx.strokeStyle=tok('--panel'); ctx.lineWidth=2; ctx.stroke();
+      html+=`<div><i class="sw" style="background:var(${s.c})"></i>${s.name}: <span class="mono">${nf(y,4)} ${ch.unit}</span></div>`; }
+    ch.tip.innerHTML=html; ch.tip.hidden=false;
+    const box=cv.getBoundingClientRect(), host=cv.parentElement.getBoundingClientRect();
+    let left=box.left-host.left+px+12; if(left+ch.tip.offsetWidth>host.width-4) left=box.left-host.left+px-12-ch.tip.offsetWidth;
+    ch.tip.style.left=left+'px'; ch.tip.style.top=(box.top-host.top+8)+'px';
+  } else if(ch.tip) ch.tip.hidden=true;
+  ch.geom={m,pw,tmax};
+}
+function drawCharts(){ for(const ch of CHARTS) drawChart(ch); }
+for(const ch of CHARTS){
+  const cv=document.getElementById(ch.id);
+  const tip=document.createElement('div'); tip.className='tip'; tip.hidden=true; cv.parentElement.appendChild(tip); ch.tip=tip;
+  cv.addEventListener('pointermove',e=>{ const r=cv.getBoundingClientRect(); ch.hx=e.clientX-r.left; chartsDirty=true; });
+  cv.addEventListener('pointerleave',()=>{ ch.hx=null; chartsDirty=true; });
+  cv.addEventListener('click',e=>{ if(!cur||!ch.geom) return; const r=cv.getBoundingClientRect(); const f=clamp((e.clientX-r.left-ch.geom.m.l)/ch.geom.pw,0,1); anim.playing=false; resetCube(); anim.mode='end'; anim.tI=f*cur.tEnd; chartsDirty=true; });
+}
+new ResizeObserver(()=>{chartsDirty=true;}).observe(document.querySelector('.charts'));
+
+/* =========================================================================
+   Ergebnisanzeige
+   ========================================================================= */
+function kv(el, rows){ document.getElementById(el).innerHTML=rows.filter(Boolean).map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join(''); }
+function showResults(R){
+  const P=R.P;
+  const K={
+    elastic:{s:'good',chip:'Elastischer Rückprall'},
+    ricochet:{s:'good',chip:'Abpraller'},
+    defeat:{s:'good',chip:'Kein Eindringen'},
+    penetration:{s:'warn',chip:'Eindringung, Projektil steckt'},
+    perforation:{s:'crit',chip:'Durchschlag'},
+  }[R.kind];
+  let big='', txt='';
+  const pint=0.5*R.P.rhoP*R.v0*R.v0+R.P.YP*1e9;
+  if(R.kind==='elastic'){
+    big=`e = ${nf(R.e,3)}<small>Stoßzahl</small>`;
+    txt=`Die Kontaktspannung von ${fP(R.sigEl)} bleibt unter Y<sub>p</sub> = ${fP(P.YP*1e9)} und R<sub>t</sub> = ${fP(R.Rt)}. Beide Körper verformen sich nur elastisch; Kontaktdauer ${fT(R.tc)}.`;
+  } else if(R.kind==='ricochet'){
+    big=`${fV(len(R.vOut))}<small>nach dem Abprall</small>`;
+    txt= R.ricTate? `Bei θ = ${nf(P.theta)}° ist das Abprallkriterium nach Tate erfüllt. Das Projektil wird umgelenkt, der Normalimpuls bis auf die elastische Rückfederung abgebaut.`
+                  : `Unterhalb der Eindringschwelle (${fV(R.vPen)}) gleitet das Projektil bei θ = ${nf(P.theta)}° an der Oberfläche ab.`;
+  } else if(R.kind==='defeat'){
+    big=`0 mm<small>Eindringtiefe</small>`;
+    txt=`Der Staudruck ½ρ<sub>p</sub>v² + Y<sub>p</sub> = ${fP(pint)} bleibt unter dem Zielwiderstand R<sub>t</sub> = ${fP(R.Rt)}. Das Projektil staucht und erodiert auf der Oberfläche (Interface Defeat). Eindringschwelle ≈ ${fV(R.vPen)}.`;
+  } else if(R.kind==='penetration'){
+    big=`${fL(R.Pmax)}<small>Eindringtiefe</small>`;
+    txt=`${R.end==='eroded'?'Das Projektil erodiert vollständig':'Das Projektil kommt zum Stillstand'} nach ${fT(R.tEnd)}. P/L = ${nf(R.Pmax/R.Leff,3)} bei einer Sichtliniendicke von ${fL(R.hLOS)}.`;
+  } else {
+    big=`${fV(R.vRes)}<small>Restgeschwindigkeit</small>`;
+    txt=`Durchschlag nach ${fT(R.tEnd)}${R.plug?`, ein Pfropfen von ${fMass(R.plug.m)} schert an der Rückseite aus`:''}. Restlänge ${fL(R.Lres)}, Restmasse ${fMass(R.mOut)}.`;
+  }
+  document.getElementById('verdict').dataset.s=K.s;
+  document.getElementById('verdict').innerHTML=`<span class="chip"><i></i>${K.chip}</span><div class="big">${big}</div><p>${txt}</p>`;
+  const p0=R.m0*R.v0;
+  kv('kvImpact',[
+    ['Projektilmasse',fMass(R.m0)],
+    ['Kinetische Energie',fE(R.E0)],
+    ['Impuls',nf(p0)+' kg·m/s'],
+    ['Stoßdruck (Hugoniot)',fP(R.hug.P)],
+    ['Stoßwelle im Würfel U<sub>s</sub>',fV(R.hug.UsT)],
+    ['Teilchengeschw. im Würfel u<sub>p</sub>',fV(R.hug.upT)],
+    ['Elastische Kontaktspannung',fP(R.sigEl)],
+    ['Fließbeginn Projektil ab',fV(R.vY)],
+  ]);
+  kv('kvPen',[
+    ['Zielwiderstand R<sub>t</sub>',fP(R.Rt)+(P.RtMan?' (manuell)':'')],
+    ['Eindringschwelle',fV(R.vPen)],
+    ['Eindringtiefe P',fL(R.Pmax)],
+    ['P / L',nf(R.Pmax/R.Leff,3)],
+    ['Hydrodyn. Grenze L·√(ρ<sub>p</sub>/ρ<sub>t</sub>)',fL(R.Leff*Math.sqrt(P.rhoP/P.rhoT))],
+    ['Kraterdurchmesser (Eintritt)',R.Pmax>0?fL(R.Dc0):'–'],
+    ['Materialdicke in Schussrichtung',fL(R.hLOS)],
+    ['Kontakt-/Eindringdauer',fT(R.tEnd)],
+    ['Restlänge Projektil',R.kind==='elastic'||R.kind==='ricochet'?fL(R.Lg):fL(R.Lres||0)],
+  ]);
+  const Vc=len(R.Vc), w=len(R.omega);
+  kv('kvCube',[
+    ['Würfelmasse',fMass(R.M)],
+    [P.mount==='fixed'?'Impuls in die Einspannung':'Übertragener Impuls',nf(len(R.J))+' kg·m/s'],
+    P.mount!=='fixed' && ['Würfelgeschwindigkeit',Vc<0.01? nf(Vc*1000)+' mm/s' : fV(Vc)],
+    P.mount!=='fixed' && ['Drehrate',nf(w)+' rad/s'],
+    P.mount!=='fixed' && ['Rutschweg (reines Gleiten)',fL(R.slide)],
+    R.plug && ['Pfropfenmasse',fMass(R.plug.m)],
+    R.mOut>0 && ['Projektil danach',fV(len(R.vOut))+', '+fMass(R.mOut)],
+  ]);
+  const E0=R.E0, seg=[
+    {n:'Verformung, Erosion, Wärme',v:R.Ediss,c:'--blue'},
+    {n:'Projektil'+(R.plug?' + Pfropfen':'')+' kinetisch',v:R.Eout,c:'--orange'},
+    {n:'Würfel kinetisch',v:R.Ecube,c:'--aqua'},
+  ];
+  document.getElementById('energy').innerHTML=
+    `<div class="ebar" role="img" aria-label="Energieaufteilung">${seg.filter(s=>s.v/E0>0.001).map(s=>`<div style="flex:${s.v/E0} 1 0;background:var(${s.c})" title="${s.n}"></div>`).join('')}</div>`+
+    `<div class="elist">${seg.map(s=>`<span class="sq" style="background:var(${s.c})"></span><span>${s.n}</span><span class="num">${fE(s.v)}</span><span class="num" style="color:var(--muted)">${nf(s.v/E0*100,3)} %</span>`).join('')}</div>`;
+  document.getElementById('warns').innerHTML=R.warns.map(w=>`<li>${w}</li>`).join('');
+  // Tabelle
+  const s=R.s, n=s.t.length, rows=[];
+  for(let k=0;k<=12;k++){ const i=Math.round(k/12*(n-1)); rows.push(`<tr><td>${nf(s.t[i]*1e6,4)}</td><td>${nf(s.v[i],4)}</td><td>${nf(s.u[i],4)}</td><td>${nf(s.L[i]*1000,4)}</td><td>${nf(s.P[i]*1000,4)}</td><td>${nf(s.Dc[i]*1000,3)}</td><td>${nf(s.sig[i]/1e9,3)}</td></tr>`); }
+  document.getElementById('tbl').innerHTML=`<table><thead><tr><th>t [µs]</th><th>v [m/s]</th><th>u [m/s]</th><th>L [mm]</th><th>P [mm]</th><th>D<sub>c</sub> [mm]</th><th>σ [GPa]</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+  if(!P.RtMan && CTL.Rt){ P.Rt=+(R.RtAuto/1e9).toFixed(2); setCtl('Rt'); }
+}
+
+/* =========================================================================
+   Start
+   ========================================================================= */
+let timer=null, lastA=null;
+function run(autoplay){
+  const R=simulate({...P});
+  const keepCam = lastA===P.a && !autoplay;
+  lastA=P.a;
+  rebuild(R, keepCam);
+  showResults(R);
+  chartsDirty=true;
+  if(autoplay){ restart(); }
+  else { anim.playing=false; anim.mode='end'; anim.tI=R.tTot; }
+}
+function schedule(){ clearTimeout(timer); timer=setTimeout(()=>run(false),90); }
+
+const scenSel=document.getElementById('scenario');
+scenSel.innerHTML=SCENARIOS.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+scenSel.addEventListener('change',()=>{ const s=SCENARIOS.find(x=>x.id===scenSel.value); Object.assign(P,BASE,s.p); syncAll(); run(true); });
+
+buildControls();
+syncAll();
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+run(!reduce);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
