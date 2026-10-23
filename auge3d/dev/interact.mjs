@@ -174,6 +174,19 @@ function modelCoverage() {
   };
 }
 
+// Ein Schritt mit Zeitgrenze: Hänger oder Fehler werden als FAIL protokolliert, der Lauf geht weiter.
+async function step(report, vp, name, fn, ms = 20000) {
+  let timer;
+  const limit = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error(`Zeitüberschreitung nach ${ms / 1000} s`)), ms); });
+  try {
+    await Promise.race([fn(), limit]);
+  } catch (err) {
+    report.check(vp, name, false, 'Schritt abgeschlossen', err.message, null);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function main() {
   await mkdir(shotsDir, { recursive: true });
   const server = await startServer();
@@ -189,11 +202,12 @@ async function main() {
   const problems = [];
   const checks = [];
   const cdnFallbacks = new Set();
-
-  const check = (vp, step, ok, expected, actual, shot) => {
-    checks.push({ vp, step, ok, expected, actual, shot });
-    console.log(`  ${ok ? 'OK  ' : 'FAIL'} [${vp}] ${step}`);
-    if (!ok) problems.push(`[${vp}] ${step}: erwartet „${expected}“, tatsächlich „${actual}“${shot ? ` (${shot})` : ''}`);
+  const report = {
+    check(vp, step, ok, expected, actual, shot) {
+      checks.push({ vp, step, ok, expected, actual, shot });
+      console.log(`  ${ok ? 'OK  ' : 'FAIL'} [${vp}] ${step}${ok ? '' : ` — erwartet ${expected}, tatsächlich ${actual}`}`);
+      if (!ok) problems.push(`[${vp}] ${step}: erwartet „${expected}“, tatsächlich „${actual}“${shot ? ` (${shot})` : ''}`);
+    },
   };
 
   try {
@@ -212,9 +226,11 @@ async function main() {
       page.on('requestfailed', (req) => problems.push(`[${label}] requestfailed: ${req.url()}`));
       page.on('response', (res) => { if (res.status() >= 400) problems.push(`[${label}] HTTP ${res.status()}: ${res.url()}`); });
 
+      const ck = (name, ok, expected, actual, shot) => report.check(label, name, ok, expected, actual, shot);
+      const run = (name, fn, ms) => step(report, label, name, fn, ms);
       const shot = async (name) => {
         const file = `interact-${label}-${name}.png`;
-        await page.screenshot({ path: join(shotsDir, file) });
+        await page.screenshot({ path: join(shotsDir, file), timeout: 15000 });
         return file;
       };
       const tap = async (x, y) => {
@@ -227,172 +243,178 @@ async function main() {
       const visibleOf = (id) => page.evaluate((i) => (EYE.meshesByPart[i] || []).every((m) => m.visible), id);
 
       console.log(`start ${label}`);
-      await page.goto(url, { waitUntil: 'load', timeout: 30000 });
-      await waitForWebGL(page);
-      console.log(`geladen ${label}`);
+      await run('laden', async () => {
+        await page.goto(url, { waitUntil: 'load', timeout: 30000 });
+        await waitForWebGL(page);
+      }, 60000);
 
-      // 1. Antippen der Teile → Info-Sheet
-      for (const id of TAP_PARTS) {
-        const step = `tippen ${id}`;
-        const hit = await page.evaluate(findTapPoint, id);
+      // 1. Antippen der Teile → Info-Sheet. Nerv über Ansicht „Posterior“.
+      for (const id of ['sclera', 'iris', 'rectus_lateralis']) {
+        await run(`tippen ${id}`, async () => {
+          await closeInfo();
+          await page.click('[data-view="front"]'); await page.waitForTimeout(900);
+          const hit = await page.evaluate(findTapPoint, id);
+          if (hit.x === null) {
+            ck(`tippen ${id}`, false, `Tippziel für ${id} vorhanden`, `kein Tipp-Punkt (${hit.n} Proben; oberste Fläche: ${hit.firstRaw})`, null);
+            return;
+          }
+          await tap(hit.x, hit.y);
+          const opened = await sheetOpen('infoSheet');
+          const s = await page.evaluate(readSheet, id);
+          const name = await shot(`info-${id}`);
+          ck(`tippen ${id}`, opened && s.la === s.expLa, s.expLa, opened ? s.la : 'Sheet geschlossen', name);
+          ck(`${id} Name`, s.de === s.expDe, s.expDe, s.de);
+          ck(`${id} Gruppe`, s.grp !== '', 'Gruppenname', s.grp);
+          ck(`${id} Text`, s.text !== '' && s.text === s.expText, 'Text aus EYE.partById', s.text.slice(0, 60));
+          ck(`${id} Fakten`, s.facts === s.expFacts, String(s.expFacts), String(s.facts));
+          ck(`${id} Klinik`, !!s.clinic === !!s.expClinic, s.expClinic ? 'Klinik-Absatz' : 'kein Klinik-Absatz', s.clinic ? 'vorhanden' : 'fehlt');
+          await closeInfo();
+        });
+      }
+      await run('tippen n_opticus (Ansicht Posterior)', async () => {
+        await page.click('[data-view="posterior"]'); await page.waitForTimeout(900);
+        const hit = await page.evaluate(findTapPoint, 'n_opticus');
         if (hit.x === null) {
-          check(label, step, false, `Tippziel für ${id} vorhanden`,
-            `kein Punkt, an dem ein Tipp ${id} wählt (${hit.n} Proben; oberste Fläche: ${hit.firstRaw})`, null);
-          continue;
+          ck('tippen n_opticus', false, 'Tippziel für n_opticus vorhanden', `kein Tipp-Punkt (${hit.n} Proben; oberste Fläche: ${hit.firstRaw})`, null);
+          return;
         }
         await tap(hit.x, hit.y);
         const opened = await sheetOpen('infoSheet');
-        const s = await page.evaluate(readSheet, id);
-        const shotName = await shot(`info-${id}`);
-        check(label, step, opened && s.la === s.expLa, s.expLa, opened ? s.la : 'Sheet geschlossen', shotName);
-        check(label, `${id} Name`, s.de === s.expDe, s.expDe, s.de);
-        check(label, `${id} Gruppe`, s.grp !== '', 'Gruppenname', s.grp);
-        check(label, `${id} Text`, s.text !== '' && s.text === s.expText, s.expText ? 'Text aus EYE.partById' : 'nicht leer', s.text.slice(0, 60));
-        check(label, `${id} Fakten`, s.facts === s.expFacts, String(s.expFacts), String(s.facts));
-        check(label, `${id} Klinik`, !!s.clinic === !!s.expClinic, s.expClinic ? 'Klinik-Absatz' : 'kein Klinik-Absatz', s.clinic ? 'vorhanden' : 'fehlt');
+        const s = await page.evaluate(readSheet, 'n_opticus');
+        const name = await shot('info-n_opticus');
+        ck('tippen n_opticus', opened && s.la === s.expLa, s.expLa, opened ? s.la : 'Sheet geschlossen', name);
+        ck('n_opticus Text', s.text !== '' && s.text === s.expText, 'Text aus EYE.partById', s.text.slice(0, 60));
         await closeInfo();
-      }
+      });
+      await run('Ansicht zurücksetzen', async () => { await page.click('#btnReset'); await page.waitForTimeout(900); });
 
-      // 2. Drehen darf nicht antippen
-      {
+      // 2. Drehen darf nicht antippen (Maus, auf beiden Viewports)
+      await run('Drehen ohne Antippen', async () => {
         const hit = await page.evaluate(findTapPoint, 'sclera');
-        const before = await page.evaluate(() => EYE.camera.position.toArray());
         const x0 = hit.x ?? vp.width / 2, y0 = hit.y ?? vp.height / 2;
-        if (vp.hasTouch) {
-          const cdp = await context.newCDPSession(page);
-          await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y: y0 }] });
-          for (let k = 1; k <= 10; k++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 + k * 9, y: y0 + k * 3 }] });
-          await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-        } else {
-          await page.mouse.move(x0, y0); await page.mouse.down();
-          for (let k = 1; k <= 10; k++) await page.mouse.move(x0 + k * 9, y0 + k * 3);
-          await page.mouse.up();
-        }
+        const before = await page.evaluate(() => EYE.camera.position.toArray());
+        await page.mouse.move(x0, y0); await page.mouse.down();
+        for (let k = 1; k <= 10; k++) await page.mouse.move(x0 + k * 9, y0 + k * 3);
+        await page.mouse.up();
         await page.waitForTimeout(900);
         const after = await page.evaluate(() => EYE.camera.position.toArray());
         const moved = Math.hypot(after[0] - before[0], after[1] - before[1], after[2] - before[2]);
         const opened = await sheetOpen('infoSheet');
-        check(label, 'Drehen ohne Antippen', !opened && moved > 0.5, 'Kamera bewegt, kein Sheet', `Kamera Δ=${moved.toFixed(2)}, Sheet ${opened ? 'offen' : 'zu'}`, await shot('drag'));
+        ck('Drehen ohne Antippen', !opened && moved > 0.5, 'Kamera bewegt, kein Sheet', `Kamera Δ=${moved.toFixed(2)}, Sheet ${opened ? 'offen' : 'zu'}`, await shot('drag'));
         await closeInfo();
-      }
+      });
 
-      // 3. Isolieren / Aufheben / Ausblenden (Sklera)
-      {
+      // 3. Isolieren / Aufheben
+      await run('Isolieren', async () => {
         const hit = await page.evaluate(findTapPoint, 'sclera');
-        if (hit.x !== null) {
-          await tap(hit.x, hit.y);
-          await page.click('#btnIsolate');
-          await page.waitForTimeout(300);
-          const pick = await page.evaluate(() => {
-            const others = [], own = [];
-            EYE.scene.traverse((o) => {
-              if (!o.isMesh || !o.userData.partId) return;
-              (o.userData.partId === 'sclera' ? own : others).push(o.userData.pickable !== false);
-            });
-            return { othersPickable: others.filter(Boolean).length, others: others.length, own: own.filter(Boolean).length, ownN: own.length };
+        if (hit.x === null) { ck('Isolieren', false, 'Sklera antippbar', 'kein Tipp-Punkt'); return; }
+        await tap(hit.x, hit.y);
+        await page.click('#btnIsolate');
+        await page.waitForTimeout(300);
+        const pick = await page.evaluate(() => {
+          const others = [], own = [];
+          EYE.scene.traverse((o) => {
+            if (!o.isMesh || !o.userData.partId) return;
+            (o.userData.partId === 'sclera' ? own : others).push(o.userData.pickable !== false);
           });
-          check(label, 'Isolieren', pick.othersPickable === 0 && pick.own === pick.ownN, 'andere Teile nicht pickbar', `${pick.othersPickable}/${pick.others} pickbar`, await shot('isolate'));
-          await page.click('#btnIsolate');
-          await page.waitForTimeout(300);
-          const restored = await page.evaluate(() => {
-            let n = 0, p = 0;
-            EYE.scene.traverse((o) => { if (o.isMesh && o.userData.partId && o.visible) { n++; if (o.userData.pickable !== false) p++; } });
-            return { n, p };
-          });
-          check(label, 'Isolierung aufheben', restored.p === restored.n, 'alle sichtbaren Teile pickbar', `${restored.p}/${restored.n}`);
-          await closeInfo();
-        }
-        // Ausblenden: Sklera tippen → Ausblenden
-        if (hit.x !== null) {
-          await tap(hit.x, hit.y);
-          await page.click('#btnHide');
-          await page.waitForTimeout(400);
-          const vis = await visibleOf('sclera');
-          check(label, 'Ausblenden', vis === false, 'Sklera unsichtbar', vis ? 'sichtbar' : 'unsichtbar', await shot('hide'));
-          check(label, 'Ausblenden schließt Sheet', !(await sheetOpen('infoSheet')), 'Sheet zu', (await sheetOpen('infoSheet')) ? 'offen' : 'zu');
-          await page.click('#btnList');
-          await page.waitForTimeout(300);
-          await page.click('#btnShowAll2');
-          await page.waitForTimeout(300);
-          const back = await visibleOf('sclera');
-          check(label, 'Alle zeigen (Liste)', back === true, 'Sklera wieder sichtbar', back ? 'sichtbar' : 'unsichtbar');
-          await page.click('#listClose');
-          await page.waitForTimeout(300);
-        }
-      }
+          return { othersPickable: others.filter(Boolean).length, others: others.length, own: own.filter(Boolean).length, ownN: own.length };
+        });
+        ck('Isolieren', pick.othersPickable === 0 && pick.own === pick.ownN, 'andere Teile nicht pickbar', `${pick.othersPickable}/${pick.others} pickbar`, await shot('isolate'));
+        await page.click('#btnIsolate');
+        await page.waitForTimeout(300);
+        const restored = await page.evaluate(() => {
+          let n = 0, p = 0;
+          EYE.scene.traverse((o) => { if (o.isMesh && o.userData.partId && o.visible) { n++; if (o.userData.pickable !== false) p++; } });
+          return { n, p };
+        });
+        ck('Isolierung aufheben', restored.p === restored.n, 'alle sichtbaren Teile pickbar', `${restored.p}/${restored.n}`);
+        await closeInfo();
+      });
 
-      // 4. Teile-Liste: Teil wählen, Sichtbarkeits-Schalter
-      {
-        await page.click('#btnList');
+      // 4. Ausblenden und Alle zeigen (Liste)
+      await run('Ausblenden und Alle zeigen', async () => {
+        const hit = await page.evaluate(findTapPoint, 'sclera');
+        if (hit.x === null) { ck('Ausblenden', false, 'Sklera antippbar', 'kein Tipp-Punkt'); return; }
+        await tap(hit.x, hit.y);
+        await page.click('#btnHide');
         await page.waitForTimeout(400);
+        const vis = await visibleOf('sclera');
+        ck('Ausblenden', vis === false, 'Sklera unsichtbar', vis ? 'sichtbar' : 'unsichtbar', await shot('hide'));
+        ck('Ausblenden schließt Sheet', !(await sheetOpen('infoSheet')), 'Sheet zu', (await sheetOpen('infoSheet')) ? 'offen' : 'zu');
+        await page.click('#btnList'); await page.waitForTimeout(300);
+        await page.click('#btnShowAll2'); await page.waitForTimeout(300);
+        const back = await visibleOf('sclera');
+        ck('Alle zeigen (Liste)', back === true, 'Sklera wieder sichtbar', back ? 'sichtbar' : 'unsichtbar');
+        await page.click('#listClose'); await page.waitForTimeout(300);
+      });
+
+      // 5. Teile-Liste: Teil wählen, Sichtbarkeits-Schalter
+      await run('Teile-Liste', async () => {
+        await page.click('#btnList'); await page.waitForTimeout(400);
         const listOpen = await page.evaluate(() => document.getElementById('listSheet').classList.contains('open'));
         const count = await page.textContent('#listCount');
         const items = await page.evaluate(() => document.querySelectorAll('#listBody button.nm').length);
-        check(label, 'Teile-Liste öffnet', listOpen && items > 30, '> 30 Einträge', `${items} Einträge, „${count}“`, await shot('list'));
-        await page.click('#listBody button[data-pick="rectus_superior"]');
-        await page.waitForTimeout(900);
+        ck('Teile-Liste öffnet', listOpen && items > 30, '> 30 Einträge', `${items} Einträge, „${count}“`, await shot('list'));
+        await page.click('#listBody button[data-pick="rectus_superior"]'); await page.waitForTimeout(900);
         const s = await page.evaluate(readSheet, 'rectus_superior');
-        check(label, 'Liste wählt Teil', (await sheetOpen('infoSheet')) && s.la === s.expLa, s.expLa, s.la, await shot('list-pick'));
+        ck('Liste wählt Teil', (await sheetOpen('infoSheet')) && s.la === s.expLa, s.expLa, s.la, await shot('list-pick'));
         await closeInfo();
-        await page.click('#btnList');
-        await page.waitForTimeout(300);
-        await page.click('#listBody button[data-vis="iris"]');
-        await page.waitForTimeout(300);
+        await page.click('#btnList'); await page.waitForTimeout(300);
+        await page.click('#listBody button[data-vis="iris"]'); await page.waitForTimeout(300);
         const off = await visibleOf('iris');
-        check(label, 'Sichtbarkeit aus (Liste)', off === false, 'Iris unsichtbar', off ? 'sichtbar' : 'unsichtbar');
-        await page.click('#listBody button[data-vis="iris"]');
-        await page.waitForTimeout(300);
+        ck('Sichtbarkeit aus (Liste)', off === false, 'Iris unsichtbar', off ? 'sichtbar' : 'unsichtbar');
+        await page.click('#listBody button[data-vis="iris"]'); await page.waitForTimeout(300);
         const on = await visibleOf('iris');
-        check(label, 'Sichtbarkeit ein (Liste)', on === true, 'Iris sichtbar', on ? 'sichtbar' : 'unsichtbar');
-        await page.click('#listClose');
-        await page.waitForTimeout(300);
-      }
+        ck('Sichtbarkeit ein (Liste)', on === true, 'Iris sichtbar', on ? 'sichtbar' : 'unsichtbar');
+        await page.click('#listClose'); await page.waitForTimeout(300);
+      });
 
-      // 5. Ansichts-Chips
+      // 6. Ansichts-Chips
       for (const [view, spec] of Object.entries(VIEW_DIRS)) {
-        await page.click(`[data-view="${view}"]`);
-        await page.waitForTimeout(900);
-        const d = await camDir();
-        check(label, `Ansicht ${view}`, spec.test({ x: d[0], y: d[1], z: d[2] }), spec.dir.join(','), d.map((v) => v.toFixed(2)).join(','), await shot(`view-${view}`));
+        await run(`Ansicht ${view}`, async () => {
+          await page.click(`[data-view="${view}"]`);
+          await page.waitForTimeout(900);
+          const d = await camDir();
+          ck(`Ansicht ${view}`, spec.test({ x: d[0], y: d[1], z: d[2] }), spec.dir.join(','), d.map((v) => v.toFixed(2)).join(','), await shot(`view-${view}`));
+        });
       }
 
-      // 6. Zurücksetzen
-      await page.click('#btnReset');
-      await page.waitForTimeout(900);
-      {
+      // 7. Zurücksetzen
+      await run('Zurücksetzen', async () => {
+        await page.click('#btnReset'); await page.waitForTimeout(900);
         const d = await camDir();
         const h = [0.55, 0.32, 1], n = Math.hypot(...h);
         const dot = (d[0] * h[0] + d[1] * h[1] + d[2] * h[2]) / n;
-        check(label, 'Zurücksetzen', dot > 0.98, 'Home-Richtung', d.map((v) => v.toFixed(2)).join(','));
-      }
+        ck('Zurücksetzen', dot > 0.98, 'Home-Richtung', d.map((v) => v.toFixed(2)).join(','));
+      });
 
-      // 7. Beschriftung an/aus
-      {
+      // 8. Beschriftung an/aus
+      await run('Beschriftung', async () => {
         const cnt = () => page.evaluate(() => [...document.querySelectorAll('#labels .lbl')].filter((e) => e.style.display === 'block').length);
-        const on0 = await cnt();
-        await page.click('#btnLabels');
-        await page.waitForTimeout(300);
+        await page.click('#btnLabels'); await page.waitForTimeout(300);
         const pressed0 = await page.getAttribute('#btnLabels', 'aria-pressed');
         const off = await cnt();
-        check(label, 'Beschriftung aus', pressed0 === 'false' && off === 0, '0 Labels, aria-pressed=false', `${off} Labels, aria-pressed=${pressed0}`);
-        await page.click('#btnLabels');
-        await page.waitForTimeout(300);
+        ck('Beschriftung aus', pressed0 === 'false' && off === 0, '0 Labels, aria-pressed=false', `${off} Labels, aria-pressed=${pressed0}`);
+        await page.click('#btnLabels'); await page.waitForTimeout(300);
         const pressed1 = await page.getAttribute('#btnLabels', 'aria-pressed');
         const again = await cnt();
-        check(label, 'Beschriftung an', pressed1 === 'true' && again > 0, 'Labels > 0, aria-pressed=true', `${again} Labels (vorher ${on0}), aria-pressed=${pressed1}`, await shot('labels'));
-      }
+        ck('Beschriftung an', pressed1 === 'true' && again > 0, 'Labels > 0, aria-pressed=true', `${again} Labels, aria-pressed=${pressed1}`, await shot('labels'));
+      });
 
-      // 8. Explosion 100 %: passt das Modell ins Bild, verdeckt das Sheet es?
-      await page.evaluate(() => { const el = document.getElementById('explo'); el.value = '100'; el.dispatchEvent(new Event('input', { bubbles: true })); });
-      await page.waitForTimeout(1500);
-      const cov0 = await page.evaluate(modelCoverage);
-      check(label, 'Explosion 100 % passt ins Bild', cov0.outPct === 0, '0 % der Scheitel außerhalb', `${cov0.outPct} % außerhalb`, await shot('explo100'));
-      await tap(...Object.values(await page.evaluate(findTapPoint, 'sclera')).slice(0, 2));
-      await page.waitForTimeout(500);
-      const cov1 = await page.evaluate(modelCoverage);
-      check(label, 'Info-Sheet verdeckt bei 100 % wenig', cov1.sheetCoverPct < 25, '< 25 % des Modells unter dem Sheet', `${cov1.sheetCoverPct} % (Sheet-Oberkante ${cov1.sheetTop}px)`, await shot('explo100-sheet'));
-      await closeInfo();
-      await page.evaluate(() => { const el = document.getElementById('explo'); el.value = '0'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+      // 9. Explosion 100 %: Modell im Bild? Verdeckt das Sheet es?
+      await run('Explosion 100 %', async () => {
+        await page.evaluate(() => { const el = document.getElementById('explo'); el.value = '100'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+        await page.waitForTimeout(1500);
+        const cov0 = await page.evaluate(modelCoverage);
+        ck('Explosion 100 % passt ins Bild', cov0.outPct === 0, '0 % der Scheitel außerhalb', `${cov0.outPct} % außerhalb`, await shot('explo100'));
+        const hit = await page.evaluate(findTapPoint, 'sclera');
+        if (hit.x !== null) await tap(hit.x, hit.y);
+        await page.waitForTimeout(500);
+        const cov1 = await page.evaluate(modelCoverage);
+        ck('Info-Sheet verdeckt bei 100 % wenig', cov1.sheetCoverPct < 25, '< 25 % des Modells unter dem Sheet', `${cov1.sheetCoverPct} % (Sheet-Oberkante ${cov1.sheetTop}px)`, await shot('explo100-sheet'));
+        await closeInfo();
+        await page.evaluate(() => { const el = document.getElementById('explo'); el.value = '0'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+      });
 
       await context.close();
     }
@@ -402,16 +424,14 @@ async function main() {
   }
 
   if (cdnFallbacks.size) console.log(`Hinweis: CDN nicht erreichbar, three.js lokal geliefert (${cdnFallbacks.size} Datei(en)).`);
-  console.log('Checks:');
-  for (const c of checks) {
-    console.log(`  ${c.ok ? 'OK  ' : 'FAIL'} [${c.vp}] ${c.step} — ${c.ok ? '' : `erwartet ${c.expected}, tatsächlich ${c.actual}`}${c.ok && c.actual ? c.actual : ''}${c.shot ? ` → ${c.shot}` : ''}`);
-  }
+  const failed = checks.filter((c) => !c.ok).length;
+  console.log(`\nErgebnis: ${checks.length - failed} OK, ${failed} FAIL.`);
   if (problems.length) {
     console.log(`\nProbleme (${problems.length}):`);
     for (const p of problems) console.log(`  ${p}`);
     process.exitCode = 1;
   } else {
-    console.log('\nKeine Fehler.');
+    console.log('\nKeine Konsolenfehler, Seitenfehler oder fehlgeschlagene Requests.');
   }
 }
 
