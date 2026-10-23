@@ -174,8 +174,34 @@ function modelCoverage() {
   };
 }
 
+// Trefferliste eines Bildschirmpunkts (Name@Distanz), zur Diagnose von Tipp-Fehlern.
+function rayHits(xy) {
+  const cam = EYE.camera, r = document.getElementById('gl').getBoundingClientRect();
+  const rc = new THREE.Raycaster();
+  rc.setFromCamera(new THREE.Vector2(((xy[0] - r.left) / r.width) * 2 - 1, -((xy[1] - r.top) / r.height) * 2 + 1), cam);
+  const targets = [];
+  EYE.scene.traverse((o) => { if (o.isMesh && o.userData.partId && o.visible && o.userData.pickable !== false) targets.push(o); });
+  return rc.intersectObjects(targets, false).slice(0, 5).map((h) => `${h.object.userData.partId}@${h.distance.toFixed(1)}`);
+}
+
+// Wartet, bis sich die Kamera nicht mehr bewegt (300 ms stabil), danach 2 s Pause.
+async function settleCamera(page) {
+  await page.evaluate(() => new Promise((ok) => {
+    let last = '', since = performance.now();
+    const t0 = performance.now();
+    const tick = () => {
+      const s = EYE.camera.position.toArray().map((v) => v.toFixed(3)).join();
+      if (s !== last) { last = s; since = performance.now(); }
+      if (performance.now() - since >= 300 || performance.now() - t0 > 8000) return ok();
+      requestAnimationFrame(tick);
+    };
+    tick();
+  }));
+  await page.waitForTimeout(2000);
+}
+
 // Ein Schritt mit Zeitgrenze: Hänger oder Fehler werden als FAIL protokolliert, der Lauf geht weiter.
-async function step(report, vp, name, fn, ms = 20000) {
+async function step(report, vp, name, fn, ms = 60000) {
   let timer;
   const limit = new Promise((_, rej) => { timer = setTimeout(() => rej(new Error(`Zeitüberschreitung nach ${ms / 1000} s`)), ms); });
   try {
@@ -240,6 +266,7 @@ async function main() {
       const sheetOpen = (id) => page.evaluate((i) => document.getElementById(i).classList.contains('open'), id);
       const closeInfo = async () => { if (await sheetOpen('infoSheet')) { await page.click('#infoClose'); await page.waitForTimeout(400); } };
       const camDir = () => page.evaluate(() => EYE.camera.position.clone().sub(EYE.controls.target).normalize().toArray());
+      const settle = () => settleCamera(page);
       const visibleOf = (id) => page.evaluate((i) => (EYE.meshesByPart[i] || []).every((m) => m.visible), id);
 
       console.log(`start ${label}`);
@@ -252,17 +279,19 @@ async function main() {
       for (const id of ['sclera', 'iris', 'rectus_lateralis']) {
         await run(`tippen ${id}`, async () => {
           await closeInfo();
-          await page.click('[data-view="front"]'); await page.waitForTimeout(900);
+          await page.click('[data-view="front"]'); await settle();
           const hit = await page.evaluate(findTapPoint, id);
           if (hit.x === null) {
             ck(`tippen ${id}`, false, `Tippziel für ${id} vorhanden`, `kein Tipp-Punkt (${hit.n} Proben; oberste Fläche: ${hit.firstRaw})`, null);
             return;
           }
+          const strahl = await page.evaluate(rayHits, [hit.x, hit.y]);
           await tap(hit.x, hit.y);
           const opened = await sheetOpen('infoSheet');
           const s = await page.evaluate(readSheet, id);
           const name = await shot(`info-${id}`);
-          ck(`tippen ${id}`, opened && s.la === s.expLa, s.expLa, opened ? s.la : 'Sheet geschlossen', name);
+          const info = `${opened ? s.la : 'Sheet geschlossen'} (Tipp ${hit.x.toFixed(0)},${hit.y.toFixed(0)} px; Strahl: ${strahl.join(', ')})`;
+          ck(`tippen ${id}`, opened && s.la === s.expLa, s.expLa, info, name);
           ck(`${id} Name`, s.de === s.expDe, s.expDe, s.de);
           ck(`${id} Gruppe`, s.grp !== '', 'Gruppenname', s.grp);
           ck(`${id} Text`, s.text !== '' && s.text === s.expText, 'Text aus EYE.partById', s.text.slice(0, 60));
@@ -272,7 +301,7 @@ async function main() {
         });
       }
       await run('tippen n_opticus (Ansicht Posterior)', async () => {
-        await page.click('[data-view="posterior"]'); await page.waitForTimeout(900);
+        await page.click('[data-view="posterior"]'); await settle();
         const hit = await page.evaluate(findTapPoint, 'n_opticus');
         if (hit.x === null) {
           ck('tippen n_opticus', false, 'Tippziel für n_opticus vorhanden', `kein Tipp-Punkt (${hit.n} Proben; oberste Fläche: ${hit.firstRaw})`, null);
@@ -286,7 +315,7 @@ async function main() {
         ck('n_opticus Text', s.text !== '' && s.text === s.expText, 'Text aus EYE.partById', s.text.slice(0, 60));
         await closeInfo();
       });
-      await run('Ansicht zurücksetzen', async () => { await page.click('#btnReset'); await page.waitForTimeout(900); });
+      await run('Ansicht zurücksetzen', async () => { await page.click('#btnReset'); await settle(); });
 
       // 2. Drehen darf nicht antippen (Maus, auf beiden Viewports)
       await run('Drehen ohne Antippen', async () => {
@@ -296,7 +325,7 @@ async function main() {
         await page.mouse.move(x0, y0); await page.mouse.down();
         for (let k = 1; k <= 10; k++) await page.mouse.move(x0 + k * 9, y0 + k * 3);
         await page.mouse.up();
-        await page.waitForTimeout(900);
+        await settle();
         const after = await page.evaluate(() => EYE.camera.position.toArray());
         const moved = Math.hypot(after[0] - before[0], after[1] - before[1], after[2] - before[2]);
         const opened = await sheetOpen('infoSheet');
@@ -355,7 +384,7 @@ async function main() {
         const count = await page.textContent('#listCount');
         const items = await page.evaluate(() => document.querySelectorAll('#listBody button.nm').length);
         ck('Teile-Liste öffnet', listOpen && items > 30, '> 30 Einträge', `${items} Einträge, „${count}“`, await shot('list'));
-        await page.click('#listBody button[data-pick="rectus_superior"]'); await page.waitForTimeout(900);
+        await page.click('#listBody button[data-pick="rectus_superior"]'); await settle();
         const s = await page.evaluate(readSheet, 'rectus_superior');
         ck('Liste wählt Teil', (await sheetOpen('infoSheet')) && s.la === s.expLa, s.expLa, s.la, await shot('list-pick'));
         await closeInfo();
@@ -373,7 +402,7 @@ async function main() {
       for (const [view, spec] of Object.entries(VIEW_DIRS)) {
         await run(`Ansicht ${view}`, async () => {
           await page.click(`[data-view="${view}"]`);
-          await page.waitForTimeout(900);
+          await settle();
           const d = await camDir();
           ck(`Ansicht ${view}`, spec.test({ x: d[0], y: d[1], z: d[2] }), spec.dir.join(','), d.map((v) => v.toFixed(2)).join(','), await shot(`view-${view}`));
         });
@@ -381,7 +410,7 @@ async function main() {
 
       // 7. Zurücksetzen
       await run('Zurücksetzen', async () => {
-        await page.click('#btnReset'); await page.waitForTimeout(900);
+        await page.click('#btnReset'); await settle();
         const d = await camDir();
         const h = [0.55, 0.32, 1], n = Math.hypot(...h);
         const dot = (d[0] * h[0] + d[1] * h[1] + d[2] * h[2]) / n;
