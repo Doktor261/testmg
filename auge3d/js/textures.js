@@ -133,16 +133,58 @@ EYE.textures = (function () {
       });
     }
 
-    // Krypten: dunkle Vertiefungen im äußeren Irisdrittel
-    for (let i = 0; i < 90; i++) {
+    // Kontraktionsfurchen im Ziliarteil (äußeres Drittel): konzentrische Wellenlinien.
+    // Ganzzahlige Perioden über die Breite halten die Naht geschlossen.
+    for (let k = 0; k < 6; k++) {
+      const y0 = H * (0.6 + k * 0.06);
+      const amp = 2 + rnd() * 2;
+      const periods = 14 + k * 3;
+      const phase = rnd() * TAU;
+      ctx.beginPath();
+      for (let x = 0; x <= W; x += 2) {
+        const yy = y0 + amp * Math.sin((x / W) * TAU * periods + phase);
+        if (x === 0) ctx.moveTo(x, yy);
+        else ctx.lineTo(x, yy);
+      }
+      ctx.strokeStyle = 'rgba(25,15,6,0.4)';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      // heller Rand unterhalb der Furche
+      ctx.save();
+      ctx.translate(0, 2);
+      ctx.strokeStyle = 'rgba(240,210,150,0.14)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Krypten: dunkle Vertiefungen im äußeren Irisdrittel, mit hellem Rand
+    for (let i = 0; i < 140; i++) {
       const x = rnd() * W;
-      const y = H * (0.55 + rnd() * 0.37);
-      const rx = 3 + rnd() * 6;
-      const ry = 2 + rnd() * 3;
-      ctx.fillStyle = 'rgba(20,12,6,0.4)';
+      const y = H * (0.5 + rnd() * 0.42);
+      const rx = 4 + rnd() * 9;
+      const ry = 2.5 + rnd() * 4;
       wrapX(ctx, W, () => {
         ctx.beginPath();
         ctx.ellipse(x, y, rx, ry, 0, 0, TAU);
+        ctx.fillStyle = 'rgba(16,9,4,0.6)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(230,190,120,0.25)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      });
+    }
+
+    // Pigmentflecke: dunkle und helle, etwas größere Punkte
+    for (let i = 0; i < 140; i++) {
+      const x = rnd() * W;
+      const y = H * (0.1 + rnd() * 0.85);
+      const rr = 1.5 + rnd() * 3.5;
+      const dark = rnd() < 0.6;
+      wrapX(ctx, W, () => {
+        ctx.beginPath();
+        ctx.arc(x, y, rr, 0, TAU);
+        ctx.fillStyle = dark ? 'rgba(60,38,16,0.35)' : 'rgba(225,185,110,0.25)';
         ctx.fill();
       });
     }
