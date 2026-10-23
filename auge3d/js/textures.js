@@ -29,6 +29,45 @@ EYE.textures = (function () {
     return c;
   }
 
+  // Canvas mit Skalierung s: gezeichnet wird in Basiskoordinaten W × H,
+  // der Kontext skaliert, damit Formen, Linienbreiten und Abstände gleich bleiben.
+  function canvasFor(W, H, s) {
+    const cv = canvas(Math.round(W * s), Math.round(H * s));
+    const sx = cv.width / W;
+    const sy = cv.height / H;
+    const ctx = cv.getContext('2d');
+    ctx.setTransform(sx, 0, 0, sy, 0, 0);
+    return { cv, ctx, sx, sy };
+  }
+
+  // Standardskala: auf kleinen Touch-Geräten halbe Auflösung (Handy-Performance)
+  function detectDefaultScale() {
+    try {
+      const coarse = window.matchMedia('(pointer: coarse)').matches;
+      const small = Math.min(screen.width, screen.height) < 820;
+      return coarse && small ? 0.5 : 1;
+    } catch (e) {
+      return 1;
+    }
+  }
+
+  // Ergebnis-Cache je Generator und Skalierung
+  const cache = { iris: {}, fundus: {}, sclera: {}, muscle: {}, tendon: {} };
+
+  function resolveScale(opts) {
+    const s = opts && typeof opts.scale === 'number' ? opts.scale : api.defaultScale;
+    return Math.min(2, Math.max(0.1, s));
+  }
+
+  function cached(name, build) {
+    return function (opts) {
+      const s = resolveScale(opts);
+      const key = String(s);
+      if (!cache[name][key]) cache[name][key] = build(s);
+      return cache[name][key];
+    };
+  }
+
   function makeTexture(cv, opts) {
     const tex = new THREE.CanvasTexture(cv);
     tex.encoding = THREE.sRGBEncoding;
@@ -65,11 +104,10 @@ EYE.textures = (function () {
   // ---------- Iris ----------
 
   // Polarabwicklung: x = Winkel (nahtlos), y = Radius (oben Pupillenrand, unten Irisbasis).
-  function iris() {
+  function irisTexture(s) {
     const W = 1024;
     const H = 512;
-    const cv = canvas(W, H);
-    const ctx = cv.getContext('2d');
+    const { cv, ctx, sx, sy } = canvasFor(W, H, s);
     const rnd = rng(7);
 
     // Grundfarbe: braun zur Pupille, grünlich-braun zum Rand
@@ -105,7 +143,7 @@ EYE.textures = (function () {
     ctx.strokeStyle = 'rgba(40,25,10,0.5)';
     ctx.lineWidth = 3;
     ctx.stroke();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.setTransform(sx, 0, 0, sy, 0, 0);
 
     // Dunkler Pupillarsaum am oberen Rand
     const sg = ctx.createLinearGradient(0, 0, 0, H * 0.08);
@@ -386,11 +424,12 @@ EYE.textures = (function () {
     }
   }
 
-  function fundus() {
+  function fundusTexture(s) {
     const { W, H, thetaMax } = FUNDUS;
-    const cv = canvas(W, H);
-    const ctx = cv.getContext('2d');
-    const img = ctx.createImageData(W, H);
+    const { cv, ctx, sx, sy } = canvasFor(W, H, s);
+    const PW = cv.width;
+    const PH = cv.height;
+    const img = ctx.createImageData(PW, PH);
     const px = img.data;
 
     // Strukturen als Tangentialebenen (Papille, Makula/Fovea)
@@ -403,17 +442,17 @@ EYE.textures = (function () {
     const FOV_R = 0.068; // Fovea Ø 1,5 mm
 
     // cos/sin von φ spaltenweise vorab berechnen
-    const phiOf = new Float64Array(W);
-    const cosP = new Float64Array(W);
-    const sinP = new Float64Array(W);
-    for (let x = 0; x < W; x++) {
-      phiOf[x] = ((x + 0.5) / W) * TAU;
+    const phiOf = new Float64Array(PW);
+    const cosP = new Float64Array(PW);
+    const sinP = new Float64Array(PW);
+    for (let x = 0; x < PW; x++) {
+      phiOf[x] = ((x + 0.5) / PW) * TAU;
       cosP[x] = Math.cos(phiOf[x]);
       sinP[x] = Math.sin(phiOf[x]);
     }
 
-    for (let y = 0; y < H; y++) {
-      const theta = ((y + 0.5) / H) * thetaMax;
+    for (let y = 0; y < PH; y++) {
+      const theta = ((y + 0.5) / PH) * thetaMax;
       const st = Math.sin(theta);
       const ct = Math.cos(theta);
       const peri = smoothstep(0.9, 1.9, theta);
@@ -422,7 +461,7 @@ EYE.textures = (function () {
       const nearPole = theta < 0.5;
       const nearDisc = theta > 0.12 && theta < 0.42;
 
-      for (let x = 0; x < W; x++) {
+      for (let x = 0; x < PW; x++) {
         const phi = phiOf[x];
         const dx = st * cosP[x];
         const dy = st * sinP[x];
@@ -479,7 +518,7 @@ EYE.textures = (function () {
           }
         }
 
-        const i = (y * W + x) * 4;
+        const i = (y * PW + x) * 4;
         px[i] = r;
         px[i + 1] = gC;
         px[i + 2] = b;
@@ -487,6 +526,8 @@ EYE.textures = (function () {
       }
     }
     ctx.putImageData(img, 0, 0);
+    // putImageData ignoriert die Transformation: danach wieder auf Basiskoordinaten skalieren
+    ctx.setTransform(sx, 0, 0, sy, 0, 0);
     drawOraSerrata(ctx);
 
     // Gefäßbögen (nach dem Pixelfeld, damit sie oben liegen)
@@ -500,11 +541,10 @@ EYE.textures = (function () {
 
   // ---------- Sklera ----------
 
-  function sclera() {
+  function scleraTexture(s) {
     const W = 1024;
     const H = 512;
-    const cv = canvas(W, H);
-    const ctx = cv.getContext('2d');
+    const { cv, ctx } = canvasFor(W, H, s);
     const rnd = rng(11);
 
     ctx.fillStyle = '#f1f4f9';
@@ -544,10 +584,9 @@ EYE.textures = (function () {
   // ---------- Muskel und Sehne (kachelbar) ----------
 
   // Rot-braune Längsfaserstreifen; senkrechte Linien, daher in x und y kachelbar.
-  function muscle() {
+  function muscleTexture(s) {
     const S = 256;
-    const cv = canvas(S, S);
-    const ctx = cv.getContext('2d');
+    const { cv, ctx } = canvasFor(S, S, s);
     const rnd = rng(31);
 
     ctx.fillStyle = '#7a2e26';
@@ -569,10 +608,9 @@ EYE.textures = (function () {
   }
 
   // Weißlich-silbrige Sehne mit feinen Längsfasern; kachelbar.
-  function tendon() {
+  function tendonTexture(s) {
     const S = 256;
-    const cv = canvas(S, S);
-    const ctx = cv.getContext('2d');
+    const { cv, ctx } = canvasFor(S, S, s);
     const rnd = rng(47);
 
     // Seitlicher Glanz, an den Rändern gleich (kachelbar)
@@ -641,13 +679,15 @@ EYE.textures = (function () {
     });
   }
 
-  return {
-    iris,
-    fundus,
-    sclera,
-    muscle,
-    tendon,
+  const api = {
+    defaultScale: detectDefaultScale(),
+    iris: cached('iris', irisTexture),
+    fundus: cached('fundus', fundusTexture),
+    sclera: cached('sclera', scleraTexture),
+    muscle: cached('muscle', muscleTexture),
+    tendon: cached('tendon', tendonTexture),
     applyPolarUV,
     applyFundusUV
   };
+  return api;
 })();
