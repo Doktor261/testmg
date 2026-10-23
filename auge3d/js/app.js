@@ -400,7 +400,10 @@ window.EYE = window.EYE || {};
     raycaster.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
     const targets = allMeshes.filter((m) => m.visible && m.userData.pickable !== false);
     const hits = raycaster.intersectObjects(targets, false);
-    let hit = hits.find((h) => !LOW[h.object.userData.partId]);
+    // Transparente Hüllen (Kornea, Linsenkapsel, Scheiden …) nur wählen, wenn dahinter nichts Opakes getroffen wird
+    const opaque = (h) => { const m = h.object.material; return !(m && m.transparent && (m.userData.baseOpacity ?? m.opacity) < 0.5); };
+    let hit = hits.find((h) => !LOW[h.object.userData.partId] && opaque(h));
+    if (!hit) hit = hits.find((h) => !LOW[h.object.userData.partId]);
     if (!hit) hit = hits[0];
     if (!hit) { EYE.select(null); return; }
     const id = hit.object.userData.partId;
