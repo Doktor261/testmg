@@ -350,6 +350,42 @@ EYE.textures = (function () {
     }
   }
 
+  // Ora serrata am unteren Rand (v ≈ 1): gezackter Übergang zur Pars plana, pigmentiert.
+  // 64 Zacken über die Breite (32 px je Zacke), daher nahtlos.
+  function drawOraSerrata(ctx) {
+    const { W, H } = FUNDUS;
+    const period = 32;
+    const base = H - 30;
+    const amp = 16;
+    const edgeY = (x) => {
+      const f = (x / period) % 1;
+      return base + amp * (f < 0.5 ? f * 2 : 2 - f * 2);
+    };
+
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (let x = 0; x <= W; x += 2) ctx.lineTo(x, edgeY(x));
+    ctx.lineTo(W, H);
+    ctx.closePath();
+    const g = ctx.createLinearGradient(0, base, 0, H);
+    g.addColorStop(0, 'rgba(110,70,42,0.85)');
+    g.addColorStop(1, 'rgba(62,36,22,0.95)');
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    // Pigmentierung entlang des Randes
+    const rnd = rng(59);
+    for (let i = 0; i < 900; i++) {
+      const x = rnd() * W;
+      const y = edgeY(x) + (rnd() - 0.3) * 14;
+      const rr = 0.8 + rnd() * 1.8;
+      ctx.beginPath();
+      ctx.arc(x, y, rr, 0, TAU);
+      ctx.fillStyle = 'rgba(20,10,5,' + (0.3 + rnd() * 0.4).toFixed(3) + ')';
+      ctx.fill();
+    }
+  }
+
   function fundus() {
     const { W, H, thetaMax } = FUNDUS;
     const cv = canvas(W, H);
@@ -451,6 +487,7 @@ EYE.textures = (function () {
       }
     }
     ctx.putImageData(img, 0, 0);
+    drawOraSerrata(ctx);
 
     // Gefäßbögen (nach dem Pixelfeld, damit sie oben liegen)
     const rnd = rng(23);
