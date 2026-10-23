@@ -114,7 +114,7 @@ function findTapPoint(id) {
   for (const m of (EYE.meshesByPart[id] || []).filter((x) => x.visible)) {
     const pos = m.geometry && m.geometry.attributes.position;
     if (!pos) continue;
-    const step = Math.max(1, Math.floor(pos.count / 400));
+    const step = Math.max(1, Math.floor(pos.count / 60));
     for (let i = 0; i < pos.count; i += step) {
       const p = new THREE.Vector3().fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld).project(cam);
       if (p.z > 1 || Math.abs(p.x) > 0.97 || Math.abs(p.y) > 0.97) continue;
@@ -192,6 +192,7 @@ async function main() {
 
   const check = (vp, step, ok, expected, actual, shot) => {
     checks.push({ vp, step, ok, expected, actual, shot });
+    console.log(`  ${ok ? 'OK  ' : 'FAIL'} [${vp}] ${step}`);
     if (!ok) problems.push(`[${vp}] ${step}: erwartet „${expected}“, tatsächlich „${actual}“${shot ? ` (${shot})` : ''}`);
   };
 
@@ -225,8 +226,10 @@ async function main() {
       const camDir = () => page.evaluate(() => EYE.camera.position.clone().sub(EYE.controls.target).normalize().toArray());
       const visibleOf = (id) => page.evaluate((i) => (EYE.meshesByPart[i] || []).every((m) => m.visible), id);
 
+      console.log(`start ${label}`);
       await page.goto(url, { waitUntil: 'load', timeout: 30000 });
       await waitForWebGL(page);
+      console.log(`geladen ${label}`);
 
       // 1. Antippen der Teile → Info-Sheet
       for (const id of TAP_PARTS) {
