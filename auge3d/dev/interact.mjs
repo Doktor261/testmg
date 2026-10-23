@@ -121,7 +121,8 @@ function findTapPoint(id) {
       n++;
       rc.setFromCamera(new THREE.Vector2(p.x, p.y), cam);
       const hits = rc.intersectObjects(targets, false);
-      const hit = hits.find((h) => !LOW[h.object.userData.partId]) || hits[0];
+      const opaque = (h) => { const m = h.object.material; return !(m && m.transparent && (m.userData.baseOpacity ?? m.opacity) < 0.5); };
+      const hit = hits.find((h) => !LOW[h.object.userData.partId] && opaque(h)) || hits.find((h) => !LOW[h.object.userData.partId]) || hits[0];
       if (!firstRaw && hits[0]) firstRaw = hits[0].object.userData.partId;
       if (hit && hit.object.userData.partId === id) {
         return { x: r.left + (p.x + 1) / 2 * r.width, y: r.top + (1 - p.y) / 2 * r.height, n, firstRaw };
