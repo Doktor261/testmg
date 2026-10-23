@@ -14,7 +14,7 @@ window.EYE = window.EYE || {};
   controls.enableDamping = true;
   controls.dampingFactor = 0.12;
   controls.minDistance = 25;
-  controls.maxDistance = 180;
+  controls.maxDistance = 400;                      // Fit im Hochformat liegt bei ≈ 220 mm (100 %)
   controls.screenSpacePanning = true;
 
   scene.add(new THREE.HemisphereLight(0xffffff, 0x6b7785, 0.85));
@@ -77,7 +77,7 @@ window.EYE = window.EYE || {};
     const d = new THREE.Vector3(...v.dir).normalize();
     if (name === 'superior') d.z = 0.02;
     d.normalize();
-    EYE.flyTo(new THREE.Vector3(0, 0, EYE.viewCenterZ || 0), d, dist || EYE.viewDistance(), instant);
+    EYE.flyTo(new THREE.Vector3(0, 0, EYE.viewCenterZ || 0), d, dist || EYE.viewDistance(d), instant);
   };
   // Kamera animiert zu Ziel/Richtung/Abstand
   let cam = null;
@@ -111,16 +111,52 @@ window.EYE = window.EYE || {};
   function freeArea() {
     const H = canvas.clientHeight || 1;
     const top = document.getElementById('topbar').getBoundingClientRect().bottom;
-    const ch = document.getElementById('chips');
-    const bottom = ch && getComputedStyle(ch).display !== 'none' ? Math.min(H, ch.getBoundingClientRect().top) : H;
+    let bottom = H;                                   // Unterkante: Chips (Hochformat) und Explosionskarte (Querformat)
+    ['chips', 'bottombar'].forEach((id) => {
+      const e = document.getElementById(id);
+      if (e && getComputedStyle(e).display !== 'none') bottom = Math.min(bottom, e.getBoundingClientRect().top);
+    });
     return { H, top: Math.max(0, top), bottom: Math.max(top + 100, bottom) };
   }
-  EYE.viewDistance = function () {
-    const aspect = camera.aspect || 1, f = freeArea();
-    const fov = camera.fov * Math.PI / 180, half = EYE.viewRadius || 24;
-    const dv = half / Math.tan(fov / 2) * (f.H / (f.bottom - f.top));
-    const dh = half / (Math.tan(fov / 2) * aspect);
-    return Math.max(dv, dh) * 1.08;
+  // Fit: kleinster Abstand, bei dem alle sichtbaren Teile im freien Bereich liegen.
+  // Je Mesh werden höchstens FIT_MAX Scheitelpunkte gestreut (lokale Koordinaten), zur Laufzeit in Welt-Koordinaten transformiert.
+  const FIT_MAX = 300, FIT_MARGIN = 0.94;          // 6 % Rand
+  const fitCache = new Map();
+  function fitSamples(m) {
+    let s = fitCache.get(m);
+    if (!s) {
+      const pos = m.geometry && m.geometry.attributes.position;
+      const stride = pos ? Math.max(1, Math.ceil(pos.count / FIT_MAX)) : 1, arr = [];
+      for (let i = 0; pos && i < pos.count; i += stride) arr.push(pos.getX(i), pos.getY(i), pos.getZ(i));
+      s = new Float32Array(arr);
+      fitCache.set(m, s);
+    }
+    return s;
+  }
+  const fitV = new THREE.Vector3(), fitM = new THREE.Matrix4();
+  EYE.viewDistance = function (dir) {
+    const T = new THREE.Vector3(0, 0, EYE.viewCenterZ || 0);
+    const d = (dir ? dir.clone() : new THREE.Vector3(0.55, 0.32, 1)).normalize();
+    const r = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), d).normalize();   // Bildrechts
+    const u = new THREE.Vector3().crossVectors(d, r).normalize();                            // Bildoben
+    const f = freeArea(), tan0 = Math.tan(camera.fov * Math.PI / 360) * FIT_MARGIN;
+    const kV = tan0 * (f.bottom - f.top) / f.H;       // vertikal nur der freie Bereich (Ansicht ist dorthin verschoben)
+    const kH = tan0 * (camera.aspect || 1);           // horizontal die volle Breite
+    let D = 0, n = 0;
+    EYE.root.updateMatrix();                          // Wurzel ist gespiegelt (scale.x = −1)
+    allMeshes.forEach((m) => {
+      if (!m.visible) return;
+      m.updateMatrix();
+      fitM.multiplyMatrices(EYE.root.matrix, m.matrix);
+      const s = fitSamples(m);
+      for (let i = 0; i < s.length; i += 3) {
+        fitV.set(s[i], s[i + 1], s[i + 2]).applyMatrix4(fitM).sub(T);
+        const c = fitV.dot(d), h = Math.abs(fitV.dot(r)), v = Math.abs(fitV.dot(u));
+        D = Math.max(D, c + h / kH, c + v / kV);
+        n++;
+      }
+    });
+    return n ? D : 60;
   };
   function applyViewOffset() {
     const w = canvas.clientWidth, f = freeArea();
@@ -158,6 +194,11 @@ window.EYE = window.EYE || {};
   EYE.setExplosion = function (t) {
     t = Math.max(0, Math.min(1, t));
     EYE.t = t;
+    // Nutzer-Zoom = Verhältnis Abstand zu Fit; es bleibt beim Umstellen erhalten
+    const oldZ = EYE.viewCenterZ === undefined ? -6 : EYE.viewCenterZ;
+    const camVec = camera.position.clone().sub(controls.target), dist = camVec.length();
+    const dir = dist > 1e-6 ? camVec.clone().normalize() : null;
+    const oldD = EYE.viewDistance(dir);
     allMeshes.forEach((m) => {
       const part = PB[m.userData.partId];
       if (!part || !part.explode) return;
@@ -172,13 +213,10 @@ window.EYE = window.EYE || {};
         m.position.x += e.extra.vec[0] * k2; m.position.y += e.extra.vec[1] * k2; m.position.z += e.extra.vec[2] * k2;
       }
     });
-    const oldD = EYE.viewDistance(), oldZ = EYE.viewCenterZ === undefined ? -6 : EYE.viewCenterZ;
-    EYE.viewRadius = 22 + 20 * t;
     EYE.viewCenterZ = -6 - 2 * t;
-    if (EYE.camReady && !cam) {      // Nutzer-Zoom bleibt relativ erhalten
-      const k = EYE.viewDistance() / oldD, off = camera.position.clone().sub(controls.target);
+    if (EYE.camReady && !cam) {
       controls.target.z += EYE.viewCenterZ - oldZ;
-      camera.position.copy(controls.target).addScaledVector(off, k);
+      if (dir) camera.position.copy(controls.target).addScaledVector(dir, dist * EYE.viewDistance(dir) / oldD);
     }
     const el = document.getElementById('exploVal');
     if (el) el.textContent = Math.round(t * 100) + ' %';
