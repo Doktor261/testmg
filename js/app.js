@@ -58,7 +58,20 @@ window.EYE = window.EYE || {};
     request();
   }
   function applyBg() { renderer.setClearColor(bgColor()); request(); }
-  window.addEventListener('resize', resize);
+  // Nach Größen-/Drehänderung (entprellt) neu fitten; der Nutzer-Zoom bleibt als Verhältnis zum Fit erhalten
+  let refitTimer = 0;
+  window.addEventListener('resize', () => {
+    resize();
+    clearTimeout(refitTimer);
+    refitTimer = setTimeout(() => {
+      if (!EYE.camReady || cam || !EYE.lastFit) return;
+      const camVec = camera.position.clone().sub(controls.target), dist = camVec.length();
+      if (dist < 1e-6) return;
+      const dir = camVec.normalize(), oldFit = EYE.lastFit;
+      camera.position.copy(controls.target).addScaledVector(dir, dist * EYE.viewDistance(dir) / oldFit);
+      request();
+    }, 150);
+  });
   const mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
   if (mq && mq.addEventListener) mq.addEventListener('change', applyBg);
   EYE.applyBg = applyBg;
@@ -156,7 +169,8 @@ window.EYE = window.EYE || {};
         n++;
       }
     });
-    return n ? D : 60;
+    EYE.lastFit = n ? D : 60;                         // Fit der zuletzt platzierten Kamera (Basis für Refit)
+    return EYE.lastFit;
   };
   function applyViewOffset() {
     const w = canvas.clientWidth, f = freeArea();

@@ -173,6 +173,16 @@
   }
   @media (max-width: 899px) and (orientation: portrait) { #xbtn { display: inline-flex; } }
   @media (max-height: 520px) { #chips { display: none; } }
+  /* Querformat (Handy): Explosionskarte klein rechts unten, Regler und Buttons in einer Zeile */
+  @media (max-height: 520px) and (orientation: landscape) {
+    #bottombar { left: auto; width: min(460px, 62vw); background: none; padding-top: 0; }
+    #exploCard { display: flex; align-items: center; gap: 8px; padding: 6px 10px; }
+    #exploCard .row { display: contents; }
+    #exploLabel { flex: none; order: 1; white-space: nowrap; }
+    #explo { flex: 1; order: 2; min-width: 0; height: 36px; }
+    #btnTogether, #btnExploded { order: 3; min-height: 36px; padding: 0 10px; }
+    #note { font-size: 10px; text-align: right; }
+  }
   @media (prefers-reduced-motion: reduce) { .sheet { transition: none; } }
 </style>
 
