@@ -521,33 +521,47 @@ window.EYE = window.EYE || {};
   function updateLabelsSoon() { labelsDirty = true; request(); }
   EYE.updateLabels = updateLabelsSoon;
   const occRay = new THREE.Raycaster();
-  function occluded(id, w) {
+  // Verdecker: nur große undurchsichtige Schalen und Muskeln (Gefäße, Zonula, Fortsätze verdecken nicht)
+  const OCC_GROUPS = ['fibrosa', 'vasculosa', 'interna', 'muskeln'];
+  function occluders() {
+    return allMeshes.filter((m) => m.visible && m.userData.pickable !== false && !m.isLineSegments && m.material.opacity > 0.9 && OCC_GROUPS.includes(EYE.partById[m.userData.partId].group));
+  }
+  function occludedBy(occ, id, w) {
     const dir = w.clone().sub(camera.position), dist = dir.length();
     occRay.set(camera.position, dir.normalize());
     occRay.far = dist - 0.3;
-    const occ = allMeshes.filter((m) => m.visible && m.userData.partId !== id && m.userData.pickable !== false && m.material.opacity > 0.9 && !m.isLineSegments);
-    return occRay.intersectObjects(occ, false).length > 0;
+    return occRay.intersectObjects(occ, false).some((h) => h.object.userData.partId !== id);
   }
-  let lastLabelState = '';
+  // Während sich Kamera oder Explosion bewegen, wird nur das letzte Verdeckungsergebnis verwendet; nach 180 ms Ruhe neu prüfen
+  let lastLabelState = '', lastCamKey = '', camStill = true, settleTimer = 0, occCache = {};
   EYE.labelsTick = function () {
     const vw = canvas.clientWidth, vh = canvas.clientHeight;
     const narrow = vw < 700;
     let ids = [];
     if (labelsOn) ids = selected ? [selected] : Object.keys(LABELS).filter((id) => !hiddenSet.has(id) && (!isolated || isolated === id));
     else if (selected) ids = [selected];
-    // nur neu berechnen, wenn sich Kamera/Explosion geändert hat
-    const state = [camera.position.x.toFixed(2), camera.position.y.toFixed(2), camera.position.z.toFixed(2), EYE.t.toFixed(3), ids.join(','), vw, vh, controls.target.x.toFixed(1)].join('|');
+    const camKey = [camera.position.x, camera.position.y, camera.position.z, controls.target.x, controls.target.y, controls.target.z, EYE.t].map((v) => v.toFixed(3)).join('|');
+    if (camKey !== lastCamKey) {
+      lastCamKey = camKey; camStill = false;
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => { camStill = true; labelsDirty = true; request(); }, 180);
+    }
+    // nur neu berechnen, wenn sich Kamera/Explosion/Auswahl geändert hat
+    const state = [camKey, ids.join(','), vw, vh].join('|');
     if (!labelsDirty && state === lastLabelState) return;
     labelsDirty = false; lastLabelState = state;
     Object.keys(labelEls).forEach((id) => { labelEls[id].d.style.display = 'none'; labelEls[id].ln.style.display = 'none'; });
     EYE.root.updateMatrixWorld(true);
+    const occ = camStill ? occluders() : null;
+    if (camStill) occCache = {};
     const items = [];
     ids.forEach((id) => {
       const w = anchorWorld(id);
       if (!w) return;
       const pr = w.clone().project(camera);
       if (pr.z > 1 || Math.abs(pr.x) > 1 || Math.abs(pr.y) > 1) return;
-      if (occluded(id, w)) return;
+      if (camStill) occCache[id] = occludedBy(occ, id, w);
+      if (occCache[id]) return;
       items.push({ id, x: (pr.x + 1) / 2 * vw, y: (1 - pr.y) / 2 * vh });
     });
     items.sort((a, b) => a.y - b.y);
