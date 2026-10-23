@@ -271,6 +271,9 @@ window.EYE = window.EYE || {};
   EYE.build = function (scene) {
     const root = new THREE.Group();
     root.name = 'auge';
+    // Modellraum folgt PLAN.md (+X = lateral). Damit es von vorn gesehen ein echtes rechtes Auge ist
+    // (nasal = Betrachter-rechts), wird die Szene an der YZ-Ebene gespiegelt.
+    root.scale.x = -1;
     scene.add(root);
     EYE.root = root;
     EYE.meshesByPart = {};
@@ -602,4 +605,361 @@ window.EYE = window.EYE || {};
       add('camera_posterior', polyLathe(q, { crease: 60 }), { renderOrder: 9 });
     }
   }
+
+  // =====================================================================
+  // Phase 3: Muskeln, Trochlea, Anulus, N. opticus, Gefäße
+  // =====================================================================
+  const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+  Object.assign(DIM, {
+    apex: V3(-11, 1, -33),            // Canalis opticus / Anulus tendineus communis
+    annulusR: 5.0,
+    trochlea: V3(-15, 15, 5),
+    originIO: V3(-13, -16, 6),
+    sclSurf: 12.05,                   // Unterseite der Muskeln auf der Sklera
+    nerveR: 1.5, piaR: 1.62, arachR: 1.95, duraR: 2.25
+  });
+  // Muskeldaten: Ansatzabstand vom Limbus (mm), Breite, Sehnenlänge (Tabelle PLAN.md)
+  const MUSCLES = {
+    rectus_medialis:  { dist: 5.5, w: 10.3, lt: 3.7, mer: V3(-1, 0, 0), ring: [-1, 0], lift: 0.8 },
+    rectus_inferior:  { dist: 6.5, w: 9.8,  lt: 5.5, mer: V3(0, -1, 0), ring: [0, -1], lift: 3.6, s0: 1 },
+    rectus_lateralis: { dist: 6.9, w: 9.2,  lt: 8.8, mer: V3(1, 0, 0),  ring: [1, 0], lift: 0.8 },
+    rectus_superior:  { dist: 7.7, w: 10.6, lt: 5.8, mer: V3(0, 1, 0),  ring: [0, 1], lift: 2.3, s0: 0.5 }
+  };
+  const phiLimbusDeg = Math.atan2(DIM.limbusR, Math.sqrt(DIM.scleraR ** 2 - DIM.limbusR ** 2)) / D2R;
+
+  function resample(pts, n) {
+    const L = [0];
+    for (let i = 1; i < pts.length; i++) L.push(L[i - 1] + pts[i].distanceTo(pts[i - 1]));
+    const tot = L[L.length - 1], out = [];
+    let j = 1;
+    for (let k = 0; k <= n; k++) {
+      const s = tot * k / n;
+      while (j < pts.length - 1 && L[j] < s) j++;
+      const f = (s - L[j - 1]) / ((L[j] - L[j - 1]) || 1);
+      out.push(pts[j - 1].clone().lerp(pts[j], Math.max(0, Math.min(1, f))));
+    }
+    return out;
+  }
+  function cumLen(pts) {
+    const L = [0];
+    for (let i = 1; i < pts.length; i++) L.push(L[i - 1] + pts[i].distanceTo(pts[i - 1]));
+    return L;
+  }
+
+  // Muskel-/Sehnenverlauf: vom Ansatz I (auf der Kugel) bogenförmig anliegend bis zum Tangentialpunkt,
+  // dann gerade zum Ursprung O. Alles liegt in einer Ebene durch den Kugelmittelpunkt.
+  function onGlobePath(O, Ihat, thickFn, Lt, lift, tRef, s0) {
+    s0 = s0 === undefined ? Lt : s0;
+    const q = O.clone().sub(Ihat.clone().multiplyScalar(O.dot(Ihat))).normalize();
+    const d = O.length();
+    const aO = Math.atan2(O.dot(q), O.dot(Ihat));
+    const RT = DIM.sclSurf + tRef / 2 + lift;
+    const aT = aO - Math.acos(Math.min(1, RT / d));
+    const pts = [], n = 48;
+    let s = 0, prev = null;
+    const sT = DIM.scleraR * aT;
+    for (let k = 0; k <= n; k++) {
+      const psi = aT * k / n;
+      const lf = lift * smooth((s - s0) / 4);
+      const R = DIM.sclSurf + thickFn(s) / 2 + lf;
+      const p = Ihat.clone().multiplyScalar(Math.cos(psi) * R).addScaledVector(q, Math.sin(psi) * R);
+      if (prev) s += p.distanceTo(prev);
+      prev = p; pts.push(p);
+    }
+    const T = pts[pts.length - 1], m = 60;
+    for (let k = 1; k <= m; k++) pts.push(T.clone().lerp(O, k / m));
+    return pts;
+  }
+
+  // abgeflachtes Rohr: Breite w(s) entlang B (Ebenennormale), Dicke t(s) entlang N (radial)
+  function flatTube(pts, wFn, tFn, o) {
+    o = o || {};
+    const seg = o.seg || 16, n = pts.length, s = cumLen(pts);
+    const pos = [], nor = [], idx = [], ref = o.ref || V3(0, 0, 0);
+    const Ts = [], Ns = [], Bs = [];
+    for (let i = 0; i < n; i++) {
+      const T = pts[Math.min(n - 1, i + 1)].clone().sub(pts[Math.max(0, i - 1)]).normalize();
+      const rp = pts[i].clone().sub(ref);
+      let N = rp.clone().addScaledVector(T, -rp.dot(T));
+      if (N.lengthSq() < 1e-6) N.set(0, 1, 0);
+      N.normalize();
+      Ts.push(T); Ns.push(N); Bs.push(new THREE.Vector3().crossVectors(T, N).normalize());
+    }
+    for (let i = 0; i < n; i++) {
+      const w = Math.max(0.05, wFn(s[i], i)) / 2, t = Math.max(0.05, tFn(s[i], i)) / 2;
+      for (let k = 0; k <= seg; k++) {
+        const a = k / seg * 2 * Math.PI, c = Math.cos(a), sn = Math.sin(a);
+        const p = pts[i].clone().addScaledVector(Bs[i], w * c).addScaledVector(Ns[i], t * sn);
+        const nm = Bs[i].clone().multiplyScalar(c / w).addScaledVector(Ns[i], sn / t).normalize();
+        pos.push(p.x, p.y, p.z); nor.push(nm.x, nm.y, nm.z);
+      }
+    }
+    const W = seg + 1;
+    for (let i = 0; i < n - 1; i++) for (let k = 0; k < seg; k++) {
+      const a = i * W + k, b = a + 1, c = a + W, d = c + 1;
+      idx.push(a, b, c, b, d, c);
+    }
+    [0, n - 1].forEach((i) => {   // Kappen
+      const c = pos.length / 3, sign = i === 0 ? -1 : 1;
+      pos.push(pts[i].x, pts[i].y, pts[i].z); nor.push(Ts[i].x * sign, Ts[i].y * sign, Ts[i].z * sign);
+      for (let k = 0; k < seg; k++) {
+        const a = i * W + k, b = a + 1;
+        if (sign < 0) idx.push(c, a, b); else idx.push(c, b, a);
+      }
+    });
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    g.setIndex(idx);
+    // UV: u um den Querschnitt, v entlang der Länge (mm) → Faser-/Streifentextur
+    const uv = [];
+    for (let i = 0; i < n; i++) for (let k = 0; k <= seg; k++) uv.push(k / seg, s[i] / 6);
+    uv.push(0.5, s[0] / 6, 0.5, s[n - 1] / 6);
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    return g;
+  }
+  // Teilbereich [i0,i1] eines Pfades (Index-basiert)
+  const sub = (pts, i0, i1) => pts.slice(i0, i1 + 1);
+
+  function tubeFromPts(pts, r, seg, rad) {
+    return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'centripetal'), seg || 40, r, rad || 10, false);
+  }
+
+  EYE.buildOrbit = function (ctx) {
+    const { add, material } = ctx;
+    EYE.insertion = {};
+    const C = DIM.apex.clone();
+    const a = new THREE.Vector3(0, 0, 0).sub(C).normalize();          // vom Apex zum Bulbus
+    const e1 = new THREE.Vector3().crossVectors(V3(0, 1, 0), a).normalize();   // lateral
+    const e2 = new THREE.Vector3().crossVectors(a, e1).normalize();            // superior
+    DIM.orbitAxis = a; DIM.ringE1 = e1; DIM.ringE2 = e2;
+
+    const tendonMat = (id) => {
+      EYE.tendonMat = EYE.tendonMat || {};
+      if (!EYE.tendonMat[id]) {
+        const m = new THREE.MeshStandardMaterial({ color: 0xf3ebdf, roughness: 0.32, metalness: 0, side: THREE.DoubleSide });
+        m.userData.baseOpacity = 1; m.userData.baseEmissive = m.emissive.clone(); m.userData.tendon = true;
+        EYE.tendonMat[id] = m;
+      }
+      return EYE.tendonMat[id];
+    };
+    const ptsFromI = (Ihat, O, thick, Lt, lift, tRef, s0) => onGlobePath(O, Ihat, thick, Lt, lift, tRef, s0);
+
+    // ---------- gerade Augenmuskeln ----------
+    const tB = 3.0, wB = 10.0;
+    Object.keys(MUSCLES).forEach((id) => {
+      const M = MUSCLES[id];
+      const phiI = (phiLimbusDeg + M.dist / DIM.scleraR / D2R) * D2R;
+      const Ihat = M.mer.clone().multiplyScalar(Math.sin(phiI)).add(V3(0, 0, Math.cos(phiI)));
+      let O = C.clone().addScaledVector(e1, M.ring[0] * 4.6).addScaledVector(e2, M.ring[1] * 4.6);
+      if (id === 'rectus_lateralis') O = C.clone().addScaledVector(e1, 4.4).addScaledVector(a, 9);   // Köpfe vereinigen sich vor dem Anulus
+      const thick = (s) => 0.6 + (tB - 0.6) * smooth((s - M.lt) / 3);
+      let path = ptsFromI(Ihat, O, thick, M.lt, M.lift, tB, M.s0);
+      path = resample(path, 150);
+      const L = cumLen(path), tot = L[L.length - 1];
+      const wFn = (s) => {
+        if (s <= M.lt) return M.w * (1 - 0.04 * s / M.lt);
+        const bw = M.w * 0.96 + (wB - M.w * 0.96) * smooth((s - M.lt) / 6);
+        return bw * (1 - 0.55 * smooth((s - (tot - 22)) / 22));
+      };
+      const tFn = (s) => thick(s) * (1 - 0.15 * smooth((s - (tot - 15)) / 15));
+      const jT = L.findIndex((v) => v >= M.lt);
+      const j2 = L.findIndex((v) => v >= M.lt + 3);
+      const opts = { ref: V3(0, 0, 0), seg: 18 };
+      add(id, flatTube(sub(path, 0, jT + 1), wFn, tFn, opts), { material: tendonMat(id) });
+      add(id, flatTube(sub(path, jT, path.length - 1), wFn, tFn, opts));
+      EYE.insertion[id] = { dir: Ihat.clone(), path: path };
+      if (id === 'rectus_lateralis') {      // zweiter Kopf (Caput superius / inferius)
+        [1, -1].forEach((sg) => {
+          const H = C.clone().addScaledVector(e1, 5.2 * Math.cos(0.5)).addScaledVector(e2, sg * 5.2 * Math.sin(0.5));
+          const hp = [H, H.clone().lerp(O, 0.5), O.clone().addScaledVector(a, 2)];
+          add(id, tubeFromPts(hp, 1.45, 24, 14));
+        });
+      }
+    });
+
+    // ---------- M. obliquus superior ----------
+    {
+      const id = 'obliquus_superior';
+      const Tr = DIM.trochlea.clone();
+      const mer = Math.PI / 4 * 1.15, polar = 103 * D2R;          // oberer temporaler Quadrant, hinter dem Äquator
+      const Ihat = V3(Math.sin(polar) * Math.cos(mer), Math.sin(polar) * Math.sin(mer), Math.cos(polar));
+      const O = C.clone().addScaledVector(e1, -3.6).addScaledVector(e2, 6.0);
+      const tend = (s) => 0.5 + 0.4 * smooth(s / 10);
+      const post = ptsFromI(Ihat, Tr, tend, 99, 0.15, 0.9);        // Ansatz → Trochlea (Sehne)
+      const din = Tr.clone().sub(O).normalize();
+      const dout = post[post.length - 2].clone().sub(Tr).normalize();
+      // Ausrunden an der Trochlea
+      const rf = 3.0;
+      const A = Tr.clone().addScaledVector(din, -rf), B = Tr.clone().addScaledVector(dout, rf);
+      let tail = [];
+      for (let i = 0; i < post.length; i++) if (post[i].distanceTo(Tr) > rf) tail.push(post[i]);
+      const curve = [];
+      for (let k = 0; k <= 14; k++) {
+        const t = k / 14;
+        curve.push(B.clone().multiplyScalar(1 - t).multiplyScalar(1 - t)
+          .addScaledVector(Tr, 2 * t * (1 - t)).addScaledVector(A, t * t));
+      }
+      // tail läuft von I zur Trochlea: letzter Punkt nahe B; danach Kurve B→A, danach Gerade A→O
+      let line = [];
+      for (let k = 1; k <= 60; k++) line.push(A.clone().lerp(O, k / 60));
+      let path = resample(tail.concat(curve).concat(line), 170);
+      const L = cumLen(path), tot = L[L.length - 1];
+      const sTr = L[path.findIndex((p, i) => i > 0 && p.distanceTo(Tr) < 0.7)] || 26;
+      const sb = sTr + 10;
+      const wFn = (s) => {
+        if (s < sb) return 3.8 + 6.2 * (1 - smooth(s / 10));
+        return 3.8 + 3.4 * smooth((s - sb) / 6) - 2.2 * smooth((s - (tot - 14)) / 14);
+      };
+      const tFn = (s) => {
+        if (s < sb) return 0.5 + 0.4 * smooth(s / 10);
+        return 0.9 + 2.1 * smooth((s - sb) / 5) - 0.5 * smooth((s - (tot - 12)) / 12);
+      };
+      const jb = L.findIndex((v) => v >= sb);
+      const opts = { ref: V3(0, 0, 0), seg: 16 };
+      add(id, flatTube(sub(path, 0, jb + 1), wFn, tFn, opts), { material: tendonMat(id) });
+      add(id, flatTube(sub(path, jb, path.length - 1), wFn, tFn, opts));
+      EYE.insertion[id] = { dir: Ihat.clone(), path };
+
+      // Trochlea: Ring, durch den die Sehne läuft
+      const axis = din.clone().add(dout).normalize();
+      const tg = new THREE.TorusGeometry(2.9, 0.62, 14, 36);
+      const tm = add('trochlea', tg);
+      tm.position.copy(Tr);
+      tm.quaternion.setFromUnitVectors(V3(0, 0, 1), axis);
+      EYE.insertion.trochlea = { axis };
+    }
+
+    // ---------- M. obliquus inferior ----------
+    {
+      const id = 'obliquus_inferior';
+      const O = DIM.originIO.clone();
+      const x = 5.5, y = -3.2, Ihat = V3(x, y, -Math.sqrt(144 - x * x - y * y)).normalize();   // ≈ 2 mm von der Makula
+      const thick = (s) => 0.6 + 1.2 * smooth((s - 1) / 2);
+      let path = resample(ptsFromI(Ihat, O, thick, 1, 0.1, 1.8), 130);
+      const L = cumLen(path), tot = L[L.length - 1];
+      const wFn = (s) => (s < 1 ? 9.4 : 9.4 - 1.4 * smooth((s - 1) / 6) - 3.4 * smooth((s - (tot - 14)) / 14));
+      const tFn = (s) => thick(s) * (1 - 0.1 * smooth((s - (tot - 10)) / 10));
+      const jT = L.findIndex((v) => v >= 1);
+      const opts = { ref: V3(0, 0, 0), seg: 16 };
+      add(id, flatTube(sub(path, 0, jT + 1), wFn, tFn, opts), { material: tendonMat(id) });
+      add(id, flatTube(sub(path, jT, path.length - 1), wFn, tFn, opts));
+      EYE.insertion[id] = { dir: Ihat.clone(), path };
+    }
+
+    // ---------- Anulus tendineus communis ----------
+    {
+      const g = new THREE.TorusGeometry(DIM.annulusR, 0.85, 14, 48);
+      const m = add('anulus_tendineus', g);
+      m.position.copy(C);
+      m.quaternion.setFromUnitVectors(V3(0, 0, 1), a);
+    }
+
+    // ---------- N. opticus (S-förmig, mit Reserve) ----------
+    const L0 = DIM.papillaDir.clone().multiplyScalar(DIM.scleraR - 0.5);       // Lamina cribrosa
+    const nerveCurve = (() => {
+      const dirL = C.clone().sub(L0), len = dirL.length();
+      const lerpAt = (t) => L0.clone().lerp(C, t);
+      const lat = V3(1, 0, 0), up = V3(0, 1, 0);
+      const p1 = lerpAt(0.18).addScaledVector(lat, -1.3).addScaledVector(up, 0.5);
+      const p2 = lerpAt(0.42).addScaledVector(lat, 1.4).addScaledVector(up, 0.2);
+      const p3 = lerpAt(0.68).addScaledVector(lat, -0.9);
+      const p4 = C.clone().addScaledVector(a, -9);       // letztes Stück gerade entlang der Orbitaachse
+      return new THREE.CatmullRomCurve3([L0, p1, p2, p3, p4, C], false, 'catmullrom', 0.5);
+    })();
+    DIM.nerveCurve = nerveCurve;
+    const nerveAxis = C.clone().sub(L0).normalize();          // Richtung Bulbus → Apex
+    EYE.nerveAxis = nerveAxis;
+    const NS = 120;
+    const nervePts = [];
+    for (let k = 0; k <= NS; k++) nervePts.push(nerveCurve.getPointAt(k / NS));
+    const tubeAlong = (r, from, seg) => {
+      const pts = nervePts.slice(from);
+      return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.5), seg || 120, r, 24, false);
+    };
+    const iSclera = nervePts.findIndex((p) => p.length() >= DIM.scleraR - 0.05);
+    add('n_opticus', tubeAlong(DIM.nerveR, 0), { material: null });
+    add('vagina_interna', tubeAlong(DIM.piaR, iSclera));
+    add('arachnoidea', tubeAlong(DIM.arachR, iSclera));
+    add('vagina_externa', tubeAlong(DIM.duraR, iSclera));
+    const nerveSide = (u, ang, rho) => {       // Punkt am Nerv: Parameter u (0 = Bulbus, 1 = Apex), Winkel, Abstand zur Achse
+      const p = nerveCurve.getPointAt(u), t = nerveCurve.getTangentAt(u);
+      const s1 = new THREE.Vector3().crossVectors(t, V3(0, 1, 0)).normalize();
+      const s2 = new THREE.Vector3().crossVectors(s1, t).normalize();
+      return p.addScaledVector(s1, rho * Math.cos(ang)).addScaledVector(s2, rho * Math.sin(ang));
+    };
+    const nLen = nerveCurve.getLength();
+    // A./V. centralis retinae: treten ≈ 11 mm hinter dem Bulbus in den Nerv ein
+    {
+      const uIn = 11.5 / nLen;
+      const mk = (ang, r, id) => {
+        const pts = [nerveSide(0.02, ang, 0.35), nerveSide(uIn * 0.6, ang, 0.35), nerveSide(uIn, ang * 0.9, 0.8),
+          nerveSide(uIn + 2.5 / nLen, ang, 2.9), nerveSide(uIn + 9 / nLen, ang, 3.4), nerveSide(uIn + 16 / nLen, ang, 3.9)];
+        add(id, tubeFromPts(pts, r, 60, 10));
+      };
+      mk(-2.2, 0.27, 'a_centralis'); mk(-1.1, 0.33, 'v_centralis');
+    }
+    // Aa. ciliares posteriores breves: ≈ 16 feine Gefäße um den Nerv
+    {
+      const n = 16, nf = DIM.papillaDir.clone();
+      const t1 = new THREE.Vector3().crossVectors(nf, V3(0, 1, 0)).normalize(), t2 = new THREE.Vector3().crossVectors(t1, nf).normalize();
+      const geos = [];
+      for (let k = 0; k < n; k++) {
+        const ang = k / n * 2 * Math.PI + 0.2, rho = 3.1 + 0.5 * ((k % 3) / 2);
+        const E = nf.clone().multiplyScalar(DIM.scleraR).addScaledVector(t1, Math.cos(ang) * rho).addScaledVector(t2, Math.sin(ang) * rho).normalize().multiplyScalar(DIM.scleraR - 0.1);
+        const pts = [nerveSide(16 / nLen, ang, 3.6), nerveSide(9 / nLen, ang, 3.6), nerveSide(4 / nLen, ang, 3.4), E.clone().addScaledVector(nf, 1.2), E];
+        geos.push(tubeFromPts(pts, 0.13, 30, 6));
+      }
+      geos.forEach((g) => add('aa_ciliares_breves', g));
+    }
+    // Aa. ciliares posteriores longae: nasal und temporal in der horizontalen Meridianebene zwischen Sklera und Aderhaut
+    {
+      [-1, 1].forEach((sg) => {
+        const pts = [];
+        for (let k = 0; k <= 40; k++) {
+          const phi = 168 - (168 - (phiOra - 2)) * k / 40;
+          const R = Rsi(phi) - 0.2, y = 0.0;
+          pts.push(V3(sg * R * Math.sin(phi * D2R) * Math.cos(0.02), y, R * Math.cos(phi * D2R)));
+        }
+        pts.unshift(V3(sg * 2.9, 0, -(DIM.scleraR - 0.5)).setLength(Rsi(180) - 0.2));
+        add('aa_ciliares_longae', tubeFromPts(pts, 0.2, 60, 8), { half: 'lower' });
+      });
+    }
+    // Vv. vorticosae: je Quadrant eine, ≈ 3–4 mm hinter dem Äquator
+    {
+      const sites = [[135, 108, 'upper'], [32, 112, 'upper'], [225, 108, 'lower'], [-38, 114, 'lower']];
+      sites.forEach(([mer, phiDeg, half]) => {
+        const m = mer * D2R, ph = phiDeg * D2R;
+        const rh = V3(Math.sin(ph) * Math.cos(m), Math.sin(ph) * Math.sin(m), Math.cos(ph));
+        const th = V3(Math.cos(ph) * Math.cos(m), Math.cos(ph) * Math.sin(m), -Math.sin(ph)).negate();  // nach hinten (−z-wärts)
+        const rin = Rci(phiDeg) + 0.15, rsi = Rsi(phiDeg);
+        // innen (Aderhaut): Ampulle + zwei kurze Seitenäste
+        const inner = [rh.clone().multiplyScalar(rin), rh.clone().multiplyScalar((rin + rsi) / 2), rh.clone().multiplyScalar(rsi - 0.05)];
+        add('vv_vorticosae', tubeFromPts(inner, 0.42, 12, 10), { half });
+        [-1, 1].forEach((sg) => {
+          const side = new THREE.Vector3().crossVectors(rh, th).normalize();
+          const e = rh.clone().multiplyScalar(rin).addScaledVector(side, sg * 2.2).addScaledVector(th, -0.4).setLength(rin);
+          add('vv_vorticosae', tubeFromPts([rh.clone().multiplyScalar(rin), e], 0.2, 8, 6), { half });
+        });
+        // außen: durch die Sklera, dann nach hinten
+        const out = [rh.clone().multiplyScalar(rsi - 0.05), rh.clone().multiplyScalar(DIM.scleraR + 0.7),
+          rh.clone().multiplyScalar(DIM.scleraR + 2.2).addScaledVector(th, 2.4), rh.clone().multiplyScalar(DIM.scleraR + 3.0).addScaledVector(th, 8)];
+        const mesh = add('vv_vorticosae', tubeFromPts(out, 0.36, 24, 10), { half });
+        mesh.userData.follow = 'sclera';
+      });
+    }
+
+    // ---------- Explosionsvektoren auflösen ----------
+    const PB = EYE.partById;
+    Object.keys(MUSCLES).concat(['obliquus_superior', 'obliquus_inferior']).forEach((id) => {
+      const d = EYE.insertion[id].dir;
+      PB[id].explode.vec = [d.x * PB[id].explode.radial, d.y * PB[id].explode.radial, d.z * PB[id].explode.radial];
+    });
+    PB.trochlea.explode.vec = PB.obliquus_superior.explode.vec.slice();
+    Object.keys(PB).forEach((id) => {
+      const e = PB[id].explode;
+      if (e.axial !== undefined) e.vec = [nerveAxis.x * e.axial, nerveAxis.y * e.axial, nerveAxis.z * e.axial];
+      if (e.extra && e.extra.axial !== undefined) e.extra.vec = [nerveAxis.x * e.extra.axial, nerveAxis.y * e.extra.axial, nerveAxis.z * e.extra.axial];
+    });
+  };
 })();

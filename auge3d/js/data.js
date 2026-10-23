@@ -1,5 +1,5 @@
 /* Teile-Katalog: Nomenklatur nach Terminologia Anatomica, Texte folgen in Phase 7.
-   explode: vec = Verschiebung in mm (x,y,z), phase 1 (Achse) oder 2 (Schalen öffnen),
+   explode: vec = Verschiebung in mm (x,y,z), axial = mm entlang der Nervenachse (vom Bulbus weg), phase 1 (Achse) oder 2 (Schalen öffnen),
             split = obere Hälfte +vec, untere Hälfte -vec, radial = Verschiebung in mm entlang der Ansatz-Normalen,
             delay = Staffelung (0–0,12 der Regler-Strecke). */
 window.EYE = window.EYE || {};
@@ -97,23 +97,23 @@ window.EYE = window.EYE || {};
     { id: 'trochlea', la: 'Trochlea', de: 'Rolle des oberen schrägen Augenmuskels', group: 'muskeln', color: 0xdad2c0, opacity: 1,
       explode: { radial: 10, phase: 2, delay: 0.08, follow: 'obliquus_superior' } },
     { id: 'anulus_tendineus', la: 'Anulus tendineus communis', de: 'Gemeinsamer Sehnenring (Zinn)', group: 'muskeln', color: 0xeadfca, opacity: 1,
-      explode: { radial: 10, phase: 2, delay: 0.08, follow: 'rectus_medialis' } },
+      explode: { vec: Z(5), phase: 2, delay: 0.08 } },
 
     // 6. N. opticus und Gefäße
     { id: 'n_opticus', la: 'N. opticus (N. II)', de: 'Sehnerv', group: 'nerv', color: 0xf1e3b6, opacity: 1, rough: 0.5,
-      explode: { vec: Z(-12), phase: 1, delay: 0 }, main: true },
+      explode: { axial: 12, phase: 1, delay: 0 }, main: true },
     { id: 'vagina_externa', la: 'Vagina externa (Dura mater)', de: 'Äußere Sehnervenscheide (Dura)', group: 'nerv', color: 0xd9c9a0, opacity: 0.45,
-      explode: { vec: Z(-12), phase: 1, delay: 0, extra: [0, 0, -8], extraPhase: 2 } },
+      explode: { axial: 12, phase: 1, delay: 0, extra: { axial: 8, phase: 2 } } },
     { id: 'arachnoidea', la: 'Arachnoidea mater', de: 'Spinngewebshaut des Sehnervs', group: 'nerv', color: 0xcad6e0, opacity: 0.5,
-      explode: { vec: Z(-12), phase: 1, delay: 0, extra: [0, 0, -4], extraPhase: 2 } },
+      explode: { axial: 12, phase: 1, delay: 0, extra: { axial: 4, phase: 2 } } },
     { id: 'vagina_interna', la: 'Vagina interna (Pia mater)', de: 'Innere Sehnervenscheide (Pia)', group: 'nerv', color: 0xe9d4dc, opacity: 0.6,
-      explode: { vec: Z(-12), phase: 1, delay: 0 } },
+      explode: { axial: 12, phase: 1, delay: 0 } },
     { id: 'a_centralis', la: 'A. centralis retinae', de: 'Zentralarterie der Netzhaut', group: 'nerv', color: 0xd22a2a, opacity: 1,
-      explode: { vec: Z(-12), phase: 1, delay: 0 } },
+      explode: { axial: 12, phase: 1, delay: 0 } },
     { id: 'v_centralis', la: 'V. centralis retinae', de: 'Zentralvene der Netzhaut', group: 'nerv', color: 0x2f55b8, opacity: 1,
-      explode: { vec: Z(-12), phase: 1, delay: 0 } },
+      explode: { axial: 12, phase: 1, delay: 0 } },
     { id: 'aa_ciliares_breves', la: 'Aa. ciliares posteriores breves', de: 'Kurze hintere Ziliararterien', group: 'nerv', color: 0xc83c3c, opacity: 1,
-      explode: { vec: Z(-12), phase: 1, delay: 0 } },
+      explode: { axial: 12, phase: 1, delay: 0 } },
     { id: 'aa_ciliares_longae', la: 'Aa. ciliares posteriores longae', de: 'Lange hintere Ziliararterien', group: 'nerv', color: 0xe0483a, opacity: 1,
       explode: { vec: Y(10), phase: 2, split: true, delay: 0.03 } },
     { id: 'vv_vorticosae', la: 'Vv. vorticosae', de: 'Wirbelvenen', group: 'nerv', color: 0x3a4fa8, opacity: 1,

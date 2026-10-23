@@ -63,7 +63,7 @@ window.EYE = window.EYE || {};
   // Rechtes Auge: Frontal = Blick von vorn (+Z) auf die Hornhaut, Lateral = von temporal (+X)
   EYE.views = {
     front: { dir: [0, 0, 1], up: [0, 1, 0] },
-    lateral: { dir: [1, 0, 0], up: [0, 1, 0] },
+    lateral: { dir: [-1, 0, 0], up: [0, 1, 0] },   // temporale Seite des rechten Auges
     superior: { dir: [0, 1, 0], up: [0, 0, -1] },
     posterior: { dir: [0, 0, -1], up: [0, 1, 0] },
     home: { dir: [0.55, 0.32, 1], up: [0, 1, 0] }
