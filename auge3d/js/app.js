@@ -7,7 +7,8 @@ window.EYE = window.EYE || {};
   const canvas = document.getElementById('gl');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const coarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarsePointer ? 1.5 : 2));   // Handy: 1,5 spart Füllrate
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(32, 1, 1, 1000);
   const controls = new THREE.OrbitControls(camera, canvas);
@@ -37,7 +38,13 @@ window.EYE = window.EYE || {};
     raf = 0;
     const moved = controls.update();
     if (EYE.onFrame) EYE.onFrame();
-    if (moved || dirty) { dirty = false; renderer.render(scene, camera); }
+    if (moved || dirty) {
+      dirty = false; renderer.render(scene, camera);
+      if (EYE.deferredMaps) {            // zurückgestellte Texturen nach dem ersten Frame erzeugen
+        const list = EYE.deferredMaps; EYE.deferredMaps = null;
+        setTimeout(() => { list.forEach((f) => f()); request(); }, 0);
+      }
+    }
     if (moved || EYE.animating) raf = requestAnimationFrame(frame);
   }
   function request() { dirty = true; if (!raf) raf = requestAnimationFrame(frame); }
