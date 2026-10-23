@@ -2,7 +2,7 @@
 // Maße und Muskeldaten nach PLAN.md (Abschnitt 3); Literaturschwankungen als gerundete Mittelwerte.
 window.EYE = window.EYE || {};
 
-EYE.GROUPS = [
+EYE.CONTENT_GROUPS = [
   { id: 'tunica_fibrosa', la: 'Tunica fibrosa bulbi', de: 'Faserhaut des Augapfels' },
   { id: 'uvea', la: 'Tunica vasculosa bulbi (Uvea)', de: 'Gefäßhaut des Augapfels' },
   { id: 'tunica_interna', la: 'Tunica interna bulbi', de: 'Innere Augenhaut (Netzhaut)' },
@@ -583,7 +583,7 @@ EYE.CONTENT = {
   });
 })();
 
-// Gruppen-Aliase: Gruppen-IDs aus data.js auf die Gruppen-IDs aus EYE.GROUPS.
+// Gruppen-Aliase: Gruppen-IDs aus data.js auf die Gruppen-IDs aus EYE.CONTENT_GROUPS.
 EYE.GROUP_ALIAS = {
   fibrosa: 'tunica_fibrosa',
   vasculosa: 'uvea',
