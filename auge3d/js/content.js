@@ -550,3 +550,45 @@ EYE.CONTENT = {
     clinic: 'Erweiterte Vortexvenen sind typisch für die pachychorioide Aderhaut und die Zentrale seröse Chorioretinopathie (CSC).'
   }
 };
+
+// Alias-Tabelle: Part-IDs aus data.js zeigen auf dieselben Einträge (gleiches Objekt, keine Kopie).
+(function () {
+  var ALIAS = {
+    sinus_venosus: 'schlemm',
+    reticulum: 'trabecular',
+    corpus_ciliare: 'ciliary_body',
+    processus_ciliares: 'ciliary_processes',
+    m_ciliaris: 'ciliary_muscle',
+    choroidea: 'choroid',
+    discus_nervi_optici: 'optic_disc',
+    lens_capsula: 'lens_capsule',
+    fibrae_zonulares: 'zonule',
+    corpus_vitreum: 'vitreous',
+    canalis_hyaloideus: 'hyaloid_canal',
+    camera_anterior: 'anterior_chamber',
+    camera_posterior: 'posterior_chamber',
+    anulus_tendineus: 'annulus_tendineus',
+    n_opticus: 'optic_nerve',
+    vagina_externa: 'dura_sheath',
+    arachnoidea: 'arachnoid_sheath',
+    vagina_interna: 'pia_sheath',
+    a_centralis: 'central_retinal_artery',
+    v_centralis: 'central_retinal_vein',
+    aa_ciliares_breves: 'short_posterior_ciliary_arteries',
+    aa_ciliares_longae: 'long_posterior_ciliary_arteries',
+    vv_vorticosae: 'vortex_veins'
+  };
+  Object.keys(ALIAS).forEach(function (alias) {
+    EYE.CONTENT[alias] = EYE.CONTENT[ALIAS[alias]];
+  });
+})();
+
+// Gruppen-Aliase: Gruppen-IDs aus data.js auf die Gruppen-IDs aus EYE.GROUPS.
+EYE.GROUP_ALIAS = {
+  fibrosa: 'tunica_fibrosa',
+  vasculosa: 'uvea',
+  interna: 'tunica_interna',
+  inhalt: 'contents',
+  muskeln: 'muscles',
+  nerv: 'nerve_vessels'
+};
