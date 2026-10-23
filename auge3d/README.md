@@ -2,7 +2,7 @@
 
 Interaktives 3D-Modell des menschlichen Auges für das Medizin- und Biologiestudium. Gezeigt wird der rechte Augapfel (Oculus dexter) mit allen Schichten, den sechs äußeren Augenmuskeln und dem N. opticus mit Hüllen und Gefäßen. Nomenklatur nach Terminologia Anatomica, deutsche Namen daneben.
 
-Link zur veröffentlichten Version: <!-- LINK -->
+Link zur veröffentlichten Version: https://claude.ai/artifact/H52vPTnsYzu7cChpH4gwd7
 
 ## Was das Modell zeigt
 
@@ -59,6 +59,14 @@ node auge3d/dev/smoke.mjs
 Das Skript öffnet die Seite mobil (390 × 844) und am Desktop (1280 × 800), setzt den Explosionsregler auf 0, 50 und 100 % und speichert Screenshots unter `auge3d/dev/shots/`. Es meldet Konsolenfehler, Seitenfehler und fehlgeschlagene Requests und endet mit Exit-Code 1, wenn welche auftreten.
 
 Chromium liegt unter `/opt/pw-browsers`. Bitte kein `playwright install` ausführen.
+
+## Abweichungen vom Plan
+
+- Die Szene ist an der YZ-Ebene gespiegelt (Modellraum wie im Plan: +X lateral), damit es von vorn gesehen ein echtes rechtes Auge ist (nasal = Betrachter-rechts).
+- Der Sehnerv gleitet in Phase 1 entlang seiner Achse (≈ −Z) statt exakt −Z, damit er durch den Anulus läuft.
+- Der Anulus verschiebt sich in Phase 2 um +Z 5 mm (Mittel der Rectus-Vektoren). Trennebene der Schalen y = +1,4 mm, damit Papille und Fovea nicht zerschnitten werden.
+- Achsenlänge: Hornhautscheitel bis Aderhaut-Außenseite ≈ 23,6 mm (bis Sklera-Innenseite 24,1 mm), da Retina/Aderhaut überhöht sind.
+- Gerade Muskeln heben sich hinter der Sehne leicht von der Sklera ab, damit die Obliqui darunter durchlaufen.
 
 ## Hinweis
 
