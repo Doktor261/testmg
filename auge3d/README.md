@@ -18,8 +18,12 @@ Schichtdicken von Retina und Choroidea sind zur Darstellung überhöht. Alle and
 - **Zoomen**: zwei Finger zusammenziehen oder auseinanderziehen
 - **Verschieben**: mit zwei Fingern ziehen
 - **Explosionsansicht**: Regler unten auf 0–100 % stellen; „Zusammen“ und „Explodiert“ animieren auf die Endstellungen
-- **Infos**: ein Teil antippen, es erscheinen Name, Text, Fakten und klinischer Bezug
-- **Teile-Liste**: Teile einzeln ein- und ausblenden oder gezielt auswählen
+- **Infos**: ein Teil antippen, es öffnet sich ein Info-Sheet mit lateinischem und deutschem Namen, Gruppe, Text, Fakten und klinischem Bezug
+- **Isolieren / Ausblenden** (im Info-Sheet): „Isolieren“ zeigt nur das gewählte Teil, „Ausblenden“ nimmt es weg, „Alle zeigen“ hebt beides auf
+- **Teile-Liste** („Teile“ oben): alle Teile nach Gruppen, mit Schalter zum Ein- und Ausblenden; Tippen auf einen Namen wählt das Teil aus
+- **Beschriftung** (oben): Beschriftungen an und aus
+- **Ansichts-Chips** (Frontal, Lateral, Superior, Posterior): Kamera fährt in die jeweilige Ansicht
+- **Ansicht zurücksetzen** (⟲ oben): Kamera zurück auf die Ausgangsansicht
 
 ## Dateistruktur
 
