@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Texturen-Vorschau</title>
+<style>
+  :root { --bg: #f4f4f1; --fg: #1d1d1b; --muted: #6b6b66; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #161615; --fg: #ecebe6; --muted: #9a9a94; }
+  }
+  :root[data-theme="dark"] { --bg: #161615; --fg: #ecebe6; --muted: #9a9a94; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; }
+  h2 { font-size: 15px; margin: 24px 0 8px; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; }
+  figure { margin: 0; width: 300px; max-width: 100%; }
+  figcaption { color: var(--muted); margin-bottom: 4px; }
+  figure canvas { width: 100%; height: auto; display: block; background: #000; }
+  #view { width: 100%; max-width: 640px; height: 480px; background: #000; }
+</style>
+</head>
+<body>
+<h2>Texturen (Canvas)</h2>
+<div class="row" id="row"></div>
+
+<h2>Fundus-Kugel von innen (Blick zum hinteren Pol, Papille links = nasal, Fovea rechts = temporal)</h2>
+<div id="view"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="../js/textures.js"></script>
+<script>
+  (function () {
+    var T = EYE.textures;
+    var row = document.getElementById('row');
+
+    var maps = {
+      'iris (1024 × 512, Polarabwicklung)': T.iris(),
+      'fundus (2048 × 1024, Abwicklung)': T.fundus(),
+      'sclera': T.sclera(),
+      'muscle (kachelbar)': T.muscle(),
+      'tendon (kachelbar)': T.tendon()
+    };
+    Object.keys(maps).forEach(function (name) {
+      var fig = document.createElement('figure');
+      var cap = document.createElement('figcaption');
+      cap.textContent = name;
+      fig.appendChild(cap);
+      fig.appendChild(maps[name].image);
+      row.appendChild(fig);
+    });
+
+    // Fundus-Kugel von innen
+    var container = document.getElementById('view');
+    var renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    container.appendChild(renderer.domElement);
+
+    var scene = new THREE.Scene();
+    var camera = new THREE.PerspectiveCamera(70, container.clientWidth / container.clientHeight, 0.1, 100);
+    camera.position.set(0, 0, 0);
+    camera.lookAt(0, 0, -1);
+
+    var geometry = new THREE.SphereGeometry(11, 128, 96);
+    T.applyFundusUV(geometry, { thetaMax: 2.06 });
+    var material = new THREE.MeshBasicMaterial({ map: maps['fundus (2048 × 1024, Abwicklung)'], side: THREE.BackSide });
+    scene.add(new THREE.Mesh(geometry, material));
+
+    renderer.render(scene, camera);
+  })();
+</script>
+</body>
+</html>
