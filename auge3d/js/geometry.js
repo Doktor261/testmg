@@ -452,7 +452,7 @@ window.EYE = window.EYE || {};
     // --- Lamina cribrosa sclerae (Siebplatte am Sehnervenaustritt) ---
     {
       const Rl = DIM.scleraR - 0.5;
-      const lg = patch(DIM.papillaDir, 1.15, 1.25, Rl, () => 0.0, { nr: 6, na: 40 });
+      const lg = patch(DIM.papillaDir, 1.15, 1.25, Rl, () => 0.0, { nr: 6, na: 40, clipY: DIM.cutY - 0.02 });
       add('lamina_cribrosa', lg, { half: 'lower' });
     }
 

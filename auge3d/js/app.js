@@ -54,6 +54,7 @@ window.EYE = window.EYE || {};
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    applyViewOffset();
     request();
   }
   function applyBg() { renderer.setClearColor(bgColor()); request(); }
@@ -106,14 +107,25 @@ window.EYE = window.EYE || {};
     applyCam(cam.to, f, cam.from);
     if (f >= 1) { cam = null; }
   };
+  // freier Bereich zwischen Topbar und Chips/Explosionskarte
+  function freeArea() {
+    const H = canvas.clientHeight || 1;
+    const top = document.getElementById('topbar').getBoundingClientRect().bottom;
+    const ch = document.getElementById('chips');
+    const bottom = ch && getComputedStyle(ch).display !== 'none' ? Math.min(H, ch.getBoundingClientRect().top) : H;
+    return { H, top: Math.max(0, top), bottom: Math.max(top + 100, bottom) };
+  }
   EYE.viewDistance = function () {
-    const aspect = camera.aspect || 1;
-    const fov = camera.fov * Math.PI / 180;
-    const half = (EYE.viewRadius || 24);
-    const dv = half / Math.tan(fov / 2);
+    const aspect = camera.aspect || 1, f = freeArea();
+    const fov = camera.fov * Math.PI / 180, half = EYE.viewRadius || 24;
+    const dv = half / Math.tan(fov / 2) * (f.H / (f.bottom - f.top));
     const dh = half / (Math.tan(fov / 2) * aspect);
-    return Math.max(dv, dh) * 1.05;
+    return Math.max(dv, dh) * 1.08;
   };
+  function applyViewOffset() {
+    const w = canvas.clientWidth, f = freeArea();
+    camera.setViewOffset(w, f.H, 0, (f.H - f.top - f.bottom) / 2, w, f.H);
+  }
 
   // ---------- Umgebungsreflexion (prozedural) ----------
   try {
@@ -160,8 +172,14 @@ window.EYE = window.EYE || {};
         m.position.x += e.extra.vec[0] * k2; m.position.y += e.extra.vec[1] * k2; m.position.z += e.extra.vec[2] * k2;
       }
     });
+    const oldD = EYE.viewDistance(), oldZ = EYE.viewCenterZ === undefined ? -6 : EYE.viewCenterZ;
     EYE.viewRadius = 22 + 20 * t;
     EYE.viewCenterZ = -6 - 2 * t;
+    if (EYE.camReady && !cam) {      // Nutzer-Zoom bleibt relativ erhalten
+      const k = EYE.viewDistance() / oldD, off = camera.position.clone().sub(controls.target);
+      controls.target.z += EYE.viewCenterZ - oldZ;
+      camera.position.copy(controls.target).addScaledVector(off, k);
+    }
     const el = document.getElementById('exploVal');
     if (el) el.textContent = Math.round(t * 100) + ' %';
     const sl = document.getElementById('explo');
@@ -499,6 +517,7 @@ window.EYE = window.EYE || {};
   resize();
   applyBg();
   EYE.setExplosion(0);
-  EYE.setView('home');
+  EYE.setView('home', 0, true);
+  EYE.camReady = true;
   request();
 })();
