@@ -638,7 +638,7 @@ window.EYE = window.EYE || {};
     rectus_medialis:  { dist: 5.5, w: 10.3, lt: 3.7, mer: V3(-1, 0, 0), ring: [-1, 0], lift: 0.8 },
     rectus_inferior:  { dist: 6.5, w: 9.8,  lt: 5.5, mer: V3(0, -1, 0), ring: [0, -1], lift: 3.6, s0: 1 },
     rectus_lateralis: { dist: 6.9, w: 9.2,  lt: 8.8, mer: V3(1, 0, 0),  ring: [1, 0], lift: 0.8 },
-    rectus_superior:  { dist: 7.7, w: 10.6, lt: 5.8, mer: V3(0, 1, 0),  ring: [0, 1], lift: 2.3, s0: 0.5 }
+    rectus_superior:  { dist: 7.7, w: 10.6, lt: 5.8, mer: V3(0, 1, 0),  ring: [0, 1], lift: 2.8, s0: 0.5 }
   };
   const phiLimbusDeg = Math.atan2(DIM.limbusR, Math.sqrt(DIM.scleraR ** 2 - DIM.limbusR ** 2)) / D2R;
 
@@ -880,7 +880,7 @@ window.EYE = window.EYE || {};
       const p1 = lerpAt(0.18).addScaledVector(lat, -1.3).addScaledVector(up, 0.5);
       const p2 = lerpAt(0.42).addScaledVector(lat, 1.4).addScaledVector(up, 0.2);
       const p3 = lerpAt(0.68).addScaledVector(lat, -0.9);
-      const p4 = C.clone().addScaledVector(a, -9);       // letztes Stück gerade entlang der Orbitaachse
+      const p4 = C.clone().addScaledVector(a, 9);        // letztes Stück gerade entlang der Orbitaachse (a: Apex → Bulbus)
       return new THREE.CatmullRomCurve3([L0, p1, p2, p3, p4, C], false, 'catmullrom', 0.5);
     })();
     DIM.nerveCurve = nerveCurve;
@@ -932,8 +932,8 @@ window.EYE = window.EYE || {};
     {
       [-1, 1].forEach((sg) => {
         const pts = [];
-        for (let k = 0; k <= 40; k++) {
-          const phi = 168 - (168 - (phiOra - 2)) * k / 40;
+        for (let k = 0; k <= 60; k++) {
+          const phi = 168 - (168 - 36) * k / 60;           // bis Corpus ciliare (z ≈ 9)
           const R = Rsi(phi) - 0.2, y = 0.0;
           pts.push(V3(sg * R * Math.sin(phi * D2R) * Math.cos(0.02), y, R * Math.cos(phi * D2R)));
         }
@@ -947,7 +947,7 @@ window.EYE = window.EYE || {};
       sites.forEach(([mer, phiDeg, half]) => {
         const m = mer * D2R, ph = phiDeg * D2R;
         const rh = V3(Math.sin(ph) * Math.cos(m), Math.sin(ph) * Math.sin(m), Math.cos(ph));
-        const th = V3(Math.cos(ph) * Math.cos(m), Math.cos(ph) * Math.sin(m), -Math.sin(ph)).negate();  // nach hinten (−z-wärts)
+        const th = V3(Math.cos(ph) * Math.cos(m), Math.cos(ph) * Math.sin(m), -Math.sin(ph));  // nach hinten (φ wächst, z sinkt)
         const rin = Rci(phiDeg) + 0.15, rsi = Rsi(phiDeg);
         // innen (Aderhaut): Ampulle + zwei kurze Seitenäste
         const inner = [rh.clone().multiplyScalar(rin), rh.clone().multiplyScalar((rin + rsi) / 2), rh.clone().multiplyScalar(rsi - 0.05)];
