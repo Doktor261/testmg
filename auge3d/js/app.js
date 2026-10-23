@@ -2,8 +2,10 @@
 window.EYE = window.EYE || {};
 (function () {
   'use strict';
+  if (THREE.ColorManagement) THREE.ColorManagement.legacyMode = false;
   const canvas = document.getElementById('gl');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(32, 1, 1, 1000);

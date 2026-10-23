@@ -75,7 +75,7 @@ window.EYE = window.EYE || {};
       const q = prof[i], rg = range ? range(q.r) : [0, 2 * Math.PI];
       for (let j = 0; j <= segs; j++) {
         const a = rg[0] + (rg[1] - rg[0]) * j / segs, c = Math.cos(a), s = Math.sin(a);
-        this.vert(q.r * c, q.r * s, q.z, q.nr * c, q.nr * s, q.nz, j / segs, q.v === undefined ? i / Math.max(1, n - 1) : q.v);
+        this.vert(q.r * c, q.r * s, q.z, q.nr * c, q.nr * s, q.nz, a / (2 * Math.PI), q.v === undefined ? i / Math.max(1, n - 1) : q.v);
       }
     }
     for (let i = 0; i < n - 1; i++) {
@@ -279,6 +279,18 @@ window.EYE = window.EYE || {};
     EYE.meshesByPart = {};
     EYE.materials = {};
 
+    function applyMap(id, m) {
+      const T = EYE.textures;
+      if (!T) return;
+      let map = null, rep = null;
+      if (id === 'sclera') { map = T.sclera(); rep = [2, 1]; }
+      else if (id === 'retina' || id === 'ora_serrata') map = T.fundus();
+      else if (id === 'iris') map = T.iris();
+      else if (EYE.partById[id].muscle) { map = T.muscle(); rep = [3, 1]; }
+      if (!map) return;
+      m.map = map; m.color.set(0xffffff);
+      if (rep) { map = map.clone(); map.needsUpdate = true; map.repeat.set(rep[0], rep[1]); m.map = map; }
+    }
     function material(id, over) {
       const p = EYE.partById[id];
       if (!EYE.materials[id]) {
@@ -287,6 +299,7 @@ window.EYE = window.EYE || {};
           transparent: p.opacity < 1, opacity: p.opacity, side: THREE.DoubleSide,
           depthWrite: !(p.opacity < 1)
         }, over || {}));
+        applyMap(id, m);
         m.userData.baseOpacity = p.opacity;
         m.userData.baseEmissive = m.emissive.clone();
         EYE.materials[id] = m;
@@ -455,7 +468,9 @@ window.EYE = window.EYE || {};
       rs.slice().reverse().forEach((r) => pts.push([r, zb(r) + offB]));
       return polyLathe(pts, { crease: 50 });
     }
-    add('iris', irisBand(DIM.pupilR, DIM.irisR - 0.1, 0, 0, 30), { renderOrder: 4 });
+    const irisGeo = irisBand(DIM.pupilR, DIM.irisR - 0.1, 0, 0, 30);
+    if (EYE.textures) EYE.textures.applyPolarUV(irisGeo, { rInner: DIM.pupilR, rOuter: DIM.irisR });
+    add('iris', irisGeo, { renderOrder: 4 });
     add('sphincter_pupillae', irisBand(DIM.pupilR + 0.01, DIM.sphincterR, -0.03, 0.03, 8));
     add('dilatator_pupillae', irisBand(DIM.sphincterR, DIM.irisR - 0.25, -0.035, -0.18, 20));
 
@@ -737,7 +752,8 @@ window.EYE = window.EYE || {};
     const tendonMat = (id) => {
       EYE.tendonMat = EYE.tendonMat || {};
       if (!EYE.tendonMat[id]) {
-        const m = new THREE.MeshStandardMaterial({ color: 0xf3ebdf, roughness: 0.32, metalness: 0, side: THREE.DoubleSide });
+        const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.32, metalness: 0, side: THREE.DoubleSide });
+        if (EYE.textures) { m.map = EYE.textures.tendon().clone(); m.map.needsUpdate = true; m.map.repeat.set(2, 1); }
         m.userData.baseOpacity = 1; m.userData.baseEmissive = m.emissive.clone(); m.userData.tendon = true;
         EYE.tendonMat[id] = m;
       }
