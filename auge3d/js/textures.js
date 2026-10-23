@@ -266,27 +266,46 @@ EYE.textures = (function () {
   // Gefäßbaum eines Bogens: Vene (dunkel, breiter, etwas außen) und Arterie (hell, schmal) plus Seitenäste
   function drawArcade(ctx, arcade, rnd) {
     const main = catmull(arcade.pts, 10);
-    const veinLine = main.map(([th, ph]) => [th + 1.3, ph]);
-    const branches = [];
-    for (let i = 4; i < main.length - 6; i += 9) {
-      const [th, ph] = main[i];
-      const [th2, ph2] = main[i + 1];
-      const heading = Math.atan2(ph2 - ph, th2 - th) + (rnd() < 0.5 ? -1 : 1) * (0.6 + rnd() * 0.5);
-      const len = 3 + rnd() * 2.5;
-      const branch = [];
-      for (let k = 0; k <= 5; k++) {
-        const s = (k / 5) * len;
-        const wob = Math.sin(k * 1.7 + rnd()) * 0.3;
-        branch.push([th + Math.sin(heading) * s + wob, ph + Math.cos(heading) * s]);
+    const veinMain = main.map(([th, ph]) => [th + 1.3, ph]);
+
+    // Arterien und Venen bekommen getrennte Bäume; ihre Äste liegen an anderen Stellen,
+    // daher kreuzen sich die Gefäße an einigen Stellen (Arterie wird über die Vene gezeichnet).
+    const arteries = [{ pts: main, w: 2.6 }];
+    growTree(main, 3, 2.6, rnd, arteries);
+    const veins = [{ pts: veinMain, w: 4.2 }];
+    growTree(veinMain, 3, 4.2, rnd, veins);
+
+    for (const v of veins) strokeTapered(ctx, toCanvas(v.pts), v.w, v.w * 0.45, 'rgba(120,36,24,0.85)');
+    for (const a of arteries) strokeTapered(ctx, toCanvas(a.pts), a.w, a.w * 0.35, 'rgba(240,140,108,0.95)');
+  }
+
+  // Verzweigungsbaum: bis zu drei Ebenen, nach außen kürzer und dünner.
+  // Die Äste werden in (θ, φ)-Grad gezeichnet; Punkte nahe der Makula werden verworfen.
+  const BRANCH_LEN = [0, 1.8, 3.2, 5.0]; // Länge je Ebene (1 = feinste) in Grad
+  const BRANCH_STEPS = 10;
+
+  function growTree(path, level, width, rnd, out) {
+    if (level === 0) return;
+    for (let i = 3 + Math.floor(rnd() * 3); i < path.length - 4; i += 6 + Math.floor(rnd() * 4)) {
+      const [th, ph] = path[i];
+      const [th2, ph2] = path[i + 1];
+      const side = rnd() < 0.5 ? -1 : 1;
+      let h = Math.atan2(ph2 - ph, th2 - th) + side * (0.45 + rnd() * 0.6);
+      const len = BRANCH_LEN[level] * (0.8 + rnd() * 0.4);
+      const pts = [[th, ph]];
+      let t = th;
+      let p = ph;
+      for (let k = 1; k <= BRANCH_STEPS; k++) {
+        h += (rnd() - 0.5) * 0.5;
+        t += (Math.sin(h) * len) / BRANCH_STEPS;
+        p += (Math.cos(h) * len) / BRANCH_STEPS;
+        pts.push([t, p]);
       }
       // Makula bleibt gefäßfrei
-      if (branch.every((p) => angleToMacula(p[0], p[1]) > 16)) branches.push(branch);
+      if (!pts.every((q) => angleToMacula(q[0], q[1]) > 16)) continue;
+      out.push({ pts, w: width });
+      growTree(pts, level - 1, width * 0.6, rnd, out);
     }
-
-    strokeTapered(ctx, toCanvas(veinLine), 4.2, 2.4, 'rgba(120,36,24,0.9)');
-    for (const b of branches) strokeTapered(ctx, toCanvas(b), 2.4, 1.0, 'rgba(120,36,24,0.8)');
-    strokeTapered(ctx, toCanvas(main), 2.6, 0.9, 'rgba(240,140,108,0.95)');
-    for (const b of branches) strokeTapered(ctx, toCanvas(b), 1.6, 0.5, 'rgba(240,140,108,0.9)');
   }
 
   function fundus() {
@@ -305,16 +324,30 @@ EYE.textures = (function () {
     const MAC_R = 0.25; // Makula Ø 5,5 mm ≈ 29°
     const FOV_R = 0.068; // Fovea Ø 1,5 mm
 
+    // cos/sin von φ spaltenweise vorab berechnen
+    const phiOf = new Float64Array(W);
+    const cosP = new Float64Array(W);
+    const sinP = new Float64Array(W);
+    for (let x = 0; x < W; x++) {
+      phiOf[x] = ((x + 0.5) / W) * TAU;
+      cosP[x] = Math.cos(phiOf[x]);
+      sinP[x] = Math.sin(phiOf[x]);
+    }
+
     for (let y = 0; y < H; y++) {
       const theta = ((y + 0.5) / H) * thetaMax;
       const st = Math.sin(theta);
       const ct = Math.cos(theta);
       const peri = smoothstep(0.9, 1.9, theta);
+      // Makula und Fovea liegen nahe dem Pol, die Papille im Fenster um φ = π:
+      // nur dort werden die Tangentialprojektionen gerechnet (außerhalb sind die Gewichte 0).
+      const nearPole = theta < 0.5;
+      const nearDisc = theta > 0.12 && theta < 0.42;
 
       for (let x = 0; x < W; x++) {
-        const phi = ((x + 0.5) / W) * TAU;
-        const dx = st * Math.cos(phi);
-        const dy = st * Math.sin(phi);
+        const phi = phiOf[x];
+        const dx = st * cosP[x];
+        const dy = st * sinP[x];
         const dz = -ct;
 
         // Grundfarbe orange-rot, zur Peripherie dunkler und gelblicher
@@ -326,38 +359,46 @@ EYE.textures = (function () {
         gC = lerp(gC, 84, peri * 0.5);
         b = lerp(b, 52, peri * 0.5);
 
-        // Makula: gelbes Pigment dunkelt ab
-        tangent(macula, dx, dy, dz, t);
-        const am = Math.hypot(t[0], t[1]);
-        const wm = Math.exp(-Math.pow(am / (MAC_R * 0.8), 2)) * 0.55;
-        r = lerp(r, 120, wm);
-        gC = lerp(gC, 55, wm);
-        b = lerp(b, 35, wm);
+        if (nearPole) {
+          tangent(macula, dx, dy, dz, t);
+          const am = Math.hypot(t[0], t[1]);
 
-        // Fovea: Grube und Foveareflex
-        const af = am;
-        const wf = Math.exp(-Math.pow(af / (FOV_R * 1.2), 2)) * 0.5;
-        r = lerp(r, 90, wf);
-        gC = lerp(gC, 45, wf);
-        b = lerp(b, 28, wf);
-        const wr = Math.exp(-Math.pow(af / 0.02, 2)) * 0.6;
-        r = lerp(r, 230, wr);
-        gC = lerp(gC, 150, wr);
-        b = lerp(b, 110, wr);
+          // Makula: gelbes Pigment dunkelt ab
+          const sm = am / (MAC_R * 0.8);
+          const wm = Math.exp(-sm * sm) * 0.55;
+          r = lerp(r, 120, wm);
+          gC = lerp(gC, 55, wm);
+          b = lerp(b, 35, wm);
+
+          // Fovea: Grube und Foveareflex
+          const sf = am / (FOV_R * 1.2);
+          const wf = Math.exp(-sf * sf) * 0.5;
+          r = lerp(r, 90, wf);
+          gC = lerp(gC, 45, wf);
+          b = lerp(b, 28, wf);
+          const sr = am / 0.02;
+          const wr = Math.exp(-sr * sr) * 0.6;
+          r = lerp(r, 230, wr);
+          gC = lerp(gC, 150, wr);
+          b = lerp(b, 110, wr);
+        }
 
         // Papille (hochoval) mit Excavatio
-        tangent(disc, dx, dy, dz, t);
-        const e = Math.pow(t[0] / RX, 2) + Math.pow(t[1] / RY, 2);
-        const wp = 1 - smoothstep(0.9, 1.05, e);
-        if (wp > 0) {
-          const ec = Math.pow(t[0] / (RX * 0.5), 2) + Math.pow(t[1] / (RY * 0.55), 2);
-          const wc = 1 - smoothstep(0.85, 1.0, ec);
-          const pr = lerp(232 + (1 - smoothstep(0.5, 1, e)) * 13, 250, wc);
-          const pg = lerp(196 + (1 - smoothstep(0.5, 1, e)) * 26, 236, wc);
-          const pb = lerp(110 + (1 - smoothstep(0.5, 1, e)) * 40, 196, wc);
-          r = lerp(r, pr, wp);
-          gC = lerp(gC, pg, wp);
-          b = lerp(b, pb, wp);
+        if (nearDisc && Math.abs(phi - Math.PI) < 0.5) {
+          tangent(disc, dx, dy, dz, t);
+          const e = (t[0] * t[0]) / (RX * RX) + (t[1] * t[1]) / (RY * RY);
+          const wp = 1 - smoothstep(0.9, 1.05, e);
+          if (wp > 0) {
+            const ec = (t[0] * t[0]) / ((RX * 0.5) * (RX * 0.5)) + (t[1] * t[1]) / ((RY * 0.55) * (RY * 0.55));
+            const wc = 1 - smoothstep(0.85, 1.0, ec);
+            const rim = 1 - smoothstep(0.5, 1, e);
+            const pr = lerp(232 + rim * 13, 250, wc);
+            const pg = lerp(196 + rim * 26, 236, wc);
+            const pb = lerp(110 + rim * 40, 196, wc);
+            r = lerp(r, pr, wp);
+            gC = lerp(gC, pg, wp);
+            b = lerp(b, pb, wp);
+          }
         }
 
         const i = (y * W + x) * 4;
