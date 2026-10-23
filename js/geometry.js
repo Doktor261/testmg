@@ -283,6 +283,10 @@ window.EYE = window.EYE || {};
       const T = EYE.textures;
       if (!T) return;
       let map = null, rep = null;
+      if (id === 'retina' || id === 'ora_serrata') {     // Fundus-Textur erst nach dem ersten Frame (schnellerer Start)
+        (EYE.deferredMaps = EYE.deferredMaps || []).push(() => { m.map = T.fundus(); m.color.set(0xffffff); m.needsUpdate = true; });
+        return;
+      }
       if (id === 'sclera') { map = T.sclera(); rep = [2, 1]; }
       else if (id === 'retina' || id === 'ora_serrata') map = T.fundus();
       else if (id === 'iris') map = T.iris();
@@ -321,8 +325,45 @@ window.EYE = window.EYE || {};
 
     buildGlobe(ctx);
     if (EYE.buildOrbit) EYE.buildOrbit(ctx);
+    ['aa_ciliares_breves', 'aa_ciliares_longae'].forEach(mergeMeshes);
     return ctx;
   };
+
+  // Statische Gefäße ohne Verschiebung (Einheitsmatrix) je Teil und Hälfte zu einem Mesh zusammenfassen: weniger Draw Calls
+  function mergeMeshes(id) {
+    const list = EYE.meshesByPart[id] || [], groups = new Map();
+    list.forEach((m) => {
+      const k = m.userData.half || '';
+      if (m.position.lengthSq() > 0 || m.quaternion.x || m.quaternion.y || m.quaternion.z || m.quaternion.w !== 1) return;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(m);
+    });
+    groups.forEach((ms) => {
+      if (ms.length < 2) return;
+      const pos = [], nor = [], uv = [], idx = [];
+      let base = 0;
+      ms.forEach((m) => {
+        const g = m.geometry, p = g.attributes.position, n = g.attributes.normal, t = g.attributes.uv;
+        for (let i = 0; i < p.count; i++) {
+          pos.push(p.getX(i), p.getY(i), p.getZ(i)); nor.push(n.getX(i), n.getY(i), n.getZ(i)); uv.push(t.getX(i), t.getY(i));
+        }
+        for (let i = 0; i < g.index.count; i++) idx.push(g.index.getX(i) + base);
+        base += p.count;
+        g.dispose();
+      });
+      const merged = new THREE.BufferGeometry();
+      merged.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      merged.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+      merged.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      merged.setIndex(idx);
+      merged.computeBoundingSphere();
+      const keep = ms[0];
+      keep.geometry = merged;
+      ms.slice(1).forEach((m) => { EYE.root.remove(m); });
+      const drop = new Set(ms.slice(1));
+      EYE.meshesByPart[id] = list.filter((m) => !drop.has(m));
+    });
+  }
 
   function buildGlobe(ctx) {
     const { add, material } = ctx;
@@ -417,7 +458,7 @@ window.EYE = window.EYE || {};
         i.push(rz(Rri(phi), phi));
       }
       ['upper', 'lower'].forEach((s) => {
-        const g = shellGeo(o, i, { side: s, segs: 192 });
+        const g = shellGeo(o, i, { side: s, segs: 96 });
         // Zähnung: vordere Kante in Meridianrichtung sägezahnartig versetzen
         const pos = g.attributes.position;
         for (let v = 0; v < pos.count; v++) {
@@ -891,7 +932,7 @@ window.EYE = window.EYE || {};
     for (let k = 0; k <= NS; k++) nervePts.push(nerveCurve.getPointAt(k / NS));
     const tubeAlong = (r, from, seg) => {
       const pts = nervePts.slice(from);
-      return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.5), seg || 120, r, 24, false);
+      return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.5), seg || 64, r, 16, false);
     };
     const iSclera = nervePts.findIndex((p) => p.length() >= DIM.scleraR - 0.05);
     add('n_opticus', tubeAlong(DIM.nerveR, 0), { material: null });
@@ -911,7 +952,7 @@ window.EYE = window.EYE || {};
       const mk = (ang, r, id) => {
         const pts = [nerveSide(0.02, ang, 0.35), nerveSide(uIn * 0.6, ang, 0.35), nerveSide(uIn, ang * 0.9, 0.8),
           nerveSide(uIn + 2.5 / nLen, ang, 2.9), nerveSide(uIn + 9 / nLen, ang, 3.4), nerveSide(uIn + 16 / nLen, ang, 3.9)];
-        add(id, tubeFromPts(pts, r, 60, 10));
+        add(id, tubeFromPts(pts, r, 32, 8));
       };
       mk(-2.2, 0.27, 'a_centralis'); mk(-1.1, 0.33, 'v_centralis');
     }
@@ -938,7 +979,7 @@ window.EYE = window.EYE || {};
           pts.push(V3(sg * R * Math.sin(phi * D2R) * Math.cos(0.02), y, R * Math.cos(phi * D2R)));
         }
         pts.unshift(V3(sg * 2.9, 0, -(DIM.scleraR - 0.5)).setLength(Rsi(180) - 0.2));
-        add('aa_ciliares_longae', tubeFromPts(pts, 0.2, 60, 8), { half: 'lower' });
+        add('aa_ciliares_longae', tubeFromPts(pts, 0.2, 32, 8), { half: 'lower' });
       });
     }
     // Vv. vorticosae: je Quadrant eine, ≈ 3–4 mm hinter dem Äquator
@@ -960,7 +1001,7 @@ window.EYE = window.EYE || {};
         // außen: durch die Sklera, dann nach hinten
         const out = [rh.clone().multiplyScalar(rsi - 0.05), rh.clone().multiplyScalar(DIM.scleraR + 0.7),
           rh.clone().multiplyScalar(DIM.scleraR + 2.2).addScaledVector(th, 2.4), rh.clone().multiplyScalar(DIM.scleraR + 3.0).addScaledVector(th, 8)];
-        const mesh = add('vv_vorticosae', tubeFromPts(out, 0.36, 24, 10), { half });
+        const mesh = add('vv_vorticosae', tubeFromPts(out, 0.36, 16, 8), { half });
         mesh.userData.follow = 'sclera';
       });
     }
