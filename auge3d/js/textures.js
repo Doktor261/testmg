@@ -80,10 +80,10 @@ EYE.textures = (function () {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
-    // Krause (Collarette) bei ≈ 35 % des Radius, wellig mit ganzzahligen Perioden (nahtlos)
+    // Krause (Collarette) bei ≈ 30 % des Radius (r ≈ 3,0 mm bei 1,75–6 mm), wellig mit ganzzahligen Perioden (nahtlos)
     const collY = (x) => {
       const a = (x / W) * TAU;
-      return H * 0.35 + 7 * Math.sin(a * 18) + 3.5 * Math.sin(a * 41 + 1.3);
+      return H * 0.3 + 7 * Math.sin(a * 18) + 3.5 * Math.sin(a * 41 + 1.3);
     };
     ctx.beginPath();
     ctx.moveTo(0, 0);
