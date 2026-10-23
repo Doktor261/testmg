@@ -89,8 +89,82 @@ window.EYE = window.EYE || {};
     return Math.max(dv, dh) * 1.05;
   };
 
+  // ---------- Umgebungsreflexion (prozedural) ----------
+  try {
+    const ec = document.createElement('canvas'); ec.width = 256; ec.height = 128;
+    const g = ec.getContext('2d');
+    const gr = g.createLinearGradient(0, 0, 0, 128);
+    gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.5, '#cfd8e0'); gr.addColorStop(1, '#6d7680');
+    g.fillStyle = gr; g.fillRect(0, 0, 256, 128);
+    g.fillStyle = '#ffffff'; g.fillRect(40, 20, 50, 24); g.fillRect(170, 30, 40, 18);
+    const et = new THREE.CanvasTexture(ec); et.encoding = THREE.sRGBEncoding;
+    const pm = new THREE.PMREMGenerator(renderer);
+    scene.environment = pm.fromEquirectangular(et).texture;
+    pm.dispose(); et.dispose();
+  } catch (e) { /* Umgebung optional */ }
+
+  // ---------- Explosion ----------
+  const PB = EYE.partById;
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const smooth = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+  const SPAN = 0.38;
+  function local(e, t) {
+    const start = (e.phase === 2 ? 0.5 : 0) + (e.delay || 0);
+    return smooth((t - start) / SPAN);
+  }
+  const allMeshes = [];
+  Object.keys(EYE.meshesByPart).forEach((id) => EYE.meshesByPart[id].forEach((m) => {
+    m.userData.basePos = m.position.clone();
+    allMeshes.push(m);
+  }));
+  EYE.t = 0;
+  EYE.setExplosion = function (t) {
+    t = Math.max(0, Math.min(1, t));
+    EYE.t = t;
+    allMeshes.forEach((m) => {
+      const part = PB[m.userData.partId];
+      if (!part || !part.explode) return;
+      const src = (m.userData.follow && PB[m.userData.follow]) ? PB[m.userData.follow] : part;
+      const e = src.explode;
+      const sign = e.split ? (m.userData.half === 'lower' ? -1 : 1) : 1;
+      const k = local(e, t) * sign;
+      const v = e.vec || [0, 0, 0];
+      m.position.set(m.userData.basePos.x + v[0] * k, m.userData.basePos.y + v[1] * k, m.userData.basePos.z + v[2] * k);
+      if (e.extra && e.extra.vec) {
+        const k2 = local({ phase: e.extra.phase, delay: e.delay }, t);
+        m.position.x += e.extra.vec[0] * k2; m.position.y += e.extra.vec[1] * k2; m.position.z += e.extra.vec[2] * k2;
+      }
+    });
+    EYE.viewRadius = 22 + 20 * t;
+    EYE.viewCenterZ = -6 - 2 * t;
+    const el = document.getElementById('exploVal');
+    if (el) el.textContent = Math.round(t * 100) + ' %';
+    const sl = document.getElementById('explo');
+    if (sl && +sl.value !== Math.round(t * 100)) sl.value = Math.round(t * 100);
+    if (EYE.onExplosion) EYE.onExplosion(t);
+    request();
+  };
+  let anim = null;
+  EYE.animateTo = function (target) {
+    if (reduceMotion) { EYE.setExplosion(target); return; }
+    const from = EYE.t, t0 = performance.now(), dur = 1200 * Math.max(0.25, Math.abs(target - from));
+    anim = { from, target, t0, dur };
+    EYE.animating = true; request();
+  };
+  EYE.onFrame = function () {
+    if (!anim) return;
+    const f = Math.min(1, (performance.now() - anim.t0) / anim.dur);
+    EYE.setExplosion(anim.from + (anim.target - anim.from) * smooth(f));
+    if (f >= 1) { anim = null; EYE.animating = false; }
+  };
+  const slider = document.getElementById('explo');
+  slider.addEventListener('input', () => { anim = null; EYE.animating = false; EYE.setExplosion(slider.value / 100); });
+  document.getElementById('btnTogether').addEventListener('click', () => EYE.animateTo(0));
+  document.getElementById('btnExploded').addEventListener('click', () => EYE.animateTo(1));
+
   resize();
   applyBg();
+  EYE.setExplosion(0);
   EYE.setView('home');
   request();
 })();
