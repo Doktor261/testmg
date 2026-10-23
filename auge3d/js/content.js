@@ -96,7 +96,7 @@ EYE.CONTENT = {
       'Dicke ≈ 0,3–0,6 mm; Krause (Collarette) bei r ≈ 3 mm',
       'Die Augenfarbe wird durch den Melaningehalt des vorderen Stromas bestimmt'
     ],
-    clinic: 'Iritis (Uveitis anterior) mit Schmerz, Rötung und Photophobie. Die Lichtreaktion der Pupille prüft die Funktion von N. oculomotorius und Sympathikus.'
+    clinic: 'Iritis (Uveitis anterior) mit Schmerz, Rötung und Photophobie. Die Lichtreaktion der Pupille prüft den N. opticus (afferent) und den N. oculomotorius (efferent, parasympathisch).'
   },
 
   sphincter_pupillae: {
@@ -107,7 +107,7 @@ EYE.CONTENT = {
       'Parasympathisch: N. oculomotorius → Ganglion ciliare → Nn. ciliares breves',
       'Verengt die Pupille bei Helligkeit und Naheinstellung'
     ],
-    clinic: 'Atropin lähmt den Sphincter und erweitert die Pupille (Mydriasis); Pilocarpin bewirkt Miosis. Beim Adie-Syndrom ist die Lichtreaktion träge, die Akkommodationsreaktion gestört.'
+    clinic: 'Atropin lähmt den Sphincter und erweitert die Pupille (Mydriasis); Pilocarpin bewirkt Miosis. Beim Adie-Syndrom ist die Pupille weit, die Lichtreaktion fehlt oder ist stark verzögert, die Nahreaktion ist langsam und tonisch erhalten (Licht-Nah-Dissoziation).'
   },
 
   dilatator_pupillae: {
@@ -173,7 +173,7 @@ EYE.CONTENT = {
     facts: [
       'Dicke ≈ 0,1–0,5 mm (zur Darstellung überhöht)',
       'Innere Versorgung über die A. centralis retinae, äußere über die Choroidea',
-      'Endet an der Ora serrata ≈ 6,5 mm hinter dem Limbus'
+      'Endet an der Ora serrata ≈ 6–7 mm hinter dem Limbus (entlang der Oberfläche; temporal ≈ 7, nasal ≈ 6 mm)'
     ],
     clinic: 'Netzhautablösung (Ablatio retinae): die Netzhaut löst sich vom Pigmentepithel, die Photorezeptoren verlieren ihre Versorgung. Netzhautrisse mit Glaskörperzug sind eine häufige Ursache.'
   },
@@ -182,7 +182,7 @@ EYE.CONTENT = {
     la: 'Ora serrata', de: 'Zackenlinie', group: 'tunica_interna',
     text: 'Die Ora serrata ist die gezackte Grenze zwischen der Pars optica und der Pars caeca retinae. Hier endet die lichtempfindliche Netzhaut. Der Glaskörper ist an dieser Stelle mit der Netzhaut fest verbunden (Glaskörperbasis).',
     facts: [
-      'Abstand vom Limbus ≈ 6,5 mm',
+      'Abstand vom Limbus ≈ 6–7 mm entlang der Oberfläche (temporal ≈ 7, nasal ≈ 6 mm)',
       'Glaskörperbasis ist hier fest verankert',
       'Übergang von der Pars optica zur Pars caeca'
     ],
@@ -204,7 +204,7 @@ EYE.CONTENT = {
     la: 'Macula lutea', de: 'Gelber Fleck', group: 'tunica_interna',
     text: 'Die Makula ist ein gelb pigmentierter Bereich der Netzhaut am hinteren Pol mit hoher Zapfendichte. Das gelbe Pigment (Lutein und Zeaxanthin) filtert kurzwelliges Licht. Die Makula vermittelt das zentrale, scharfe Sehen und das Farbsehen.',
     facts: [
-      'Durchmesser ≈ 5,5 mm (≈ 29° Gesichtsfeld)',
+      'Durchmesser ≈ 5,5 mm (≈ 18–20° Gesichtsfeld)',
       'Gelbpigment: Lutein und Zeaxanthin',
       'Zentrum ≈ 1,2 mm temporal und 0,4 mm inferior des hinteren Pols'
     ],
@@ -230,7 +230,7 @@ EYE.CONTENT = {
       'Mitte ≈ 3,0 mm nasal und ≈ 0,3 mm superior des hinteren Pols',
       'Ca. 4 mm von der Fovea entfernt'
     ],
-    clinic: 'Papillenödem bei erhöhtem Hirndruck (Stauungspapille) oder Optikusneuritis. Beim Glaukom ist die Excavatio vergrößert, der Randsaum ausgedünnt (vergrößerte Cup-to-Disc-Ratio).'
+    clinic: 'Stauungspapille (meist beidseitiges Papillenödem bei erhöhtem Hirndruck) ist von der Papillitis (Optikusneuritis mit Papillenschwellung) zu unterscheiden; bei der Retrobulbärneuritis ist die Papille unauffällig. Beim Glaukom ist die Excavatio vergrößert, der Randsaum ausgedünnt (vergrößerte Cup-to-Disc-Ratio).'
   },
 
   // ---- Inhalt des Bulbus ----
@@ -243,7 +243,7 @@ EYE.CONTENT = {
       'Verankerung der Zonulafasern am Äquator',
       'Elastisch: Krümmungsänderung bei Akkommodation'
     ],
-    clinic: 'Die Kapsulorhexis (zirkuläre Eröffnung der vorderen Kapsel) ist der erste Schritt der Kataraktoperation. Nach der Implantation trübt die hintere Kapsel häufig ein (Nachstar).'
+    clinic: 'Die Kapsulorhexis (zirkuläre Eröffnung der vorderen Kapsel) ist der erste Schritt der Kataraktoperation. Nach der Implantation trübt die hintere Kapsel häufig ein (Nachstar). Diabetes und Steroide begünstigen die hintere subkapsuläre Katarakt.'
   },
 
   lens_cortex: {
@@ -254,7 +254,7 @@ EYE.CONTENT = {
       'Hauptproteine: Kristalline (α, β, γ)',
       'Lebenslanger Zuwachs, die Linse wird mit dem Alter dicker'
     ],
-    clinic: 'Rindenkatarakt: speichenförmige Trübungen, meist peripher beginnend. Diabetes und Steroide begünstigen die hintere subkapsuläre Trübung.'
+    clinic: 'Rindenkatarakt: speichenförmige Trübungen, meist peripher beginnend.'
   },
 
   lens_nucleus: {
@@ -519,11 +519,11 @@ EYE.CONTENT = {
 
   short_posterior_ciliary_arteries: {
     la: 'Arteriae ciliares posteriores breves', de: 'Kurze hintere Ziliararterien', group: 'nerve_vessels',
-    text: 'Die kurzen hinteren Ziliararterien sind ca. 15–20 kleine Arterien, die den Sehnerv am Skleradurchtritt umgeben. Sie versorgen die Choroidea und den prälaminären Sehnerv. Ihre Anastomosen bilden um die Papille den Circulus arteriosus Zinnii.',
+    text: 'Die kurzen hinteren Ziliararterien sind 6–12 Stämme, die sich in ca. 15–20 Äste teilen und die Sklera um den Sehnerv durchbohren. Sie versorgen die Choroidea und den prälaminären Sehnerv. Ihre Anastomosen bilden um die Papille den Circulus arteriosus scleralis (Zinn-Haller).',
     facts: [
-      'Ca. 15–20 Arterien um den N. opticus',
+      '6–12 Stämme, ca. 15–20 Äste um den N. opticus',
       'Versorgung von Choroidea und prälaminärem Sehnerv',
-      'Circulus arteriosus Zinnii um die Papille'
+      'Circulus arteriosus scleralis (Zinn-Haller) um die Papille'
     ],
     clinic: 'Die nicht-arteriitische anteriore ischämische Optikusneuropathie (NAION) entsteht durch Minderdurchblutung im Versorgungsgebiet dieser Arterien, meist im Bereich der Lamina.'
   },

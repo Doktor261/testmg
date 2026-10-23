@@ -62,7 +62,7 @@ Alle rotationssymmetrischen Teile entstehen als `THREE.LatheGeometry` aus einem 
 | Fibrae zonulares (Zinn) | von Processus ciliares zum Linsenäquator, vordere + hintere Faserzüge | `LineSegments`, ca. 2 × 144 Linien |
 | Schlemm-Kanal / Trabekelwerk | im Kammerwinkel, Kanal-Querschnitt ≈ 0,3 | `TorusGeometry` (Kanal) + dünner Ring (Trabekelwerk) |
 | Choroidea | Dicke ≈ 0,25 | Kugelschale innen an Sklera, von Ora serrata bis Papille |
-| Retina (Pars optica) | Dicke 0,1–0,5; endet an der Ora serrata (≈ 6,5 mm hinter Limbus, z ≈ 5,3) | Kugelschale mit Fundus-Textur (Gefäßbögen, Makula) |
+| Retina (Pars optica) | Dicke 0,1–0,5; endet an der Ora serrata (≈ 6–7 mm hinter dem Limbus entlang der Oberfläche, z ≈ 5,3) | Kugelschale mit Fundus-Textur (Gefäßbögen, Makula) |
 | Macula lutea | Durchmesser ≈ 5,5 | Farbe in der Retina-Textur + eigenes dünnes Scheiben-Mesh zum Antippen |
 | Fovea centralis | Durchmesser ≈ 1,5 (Foveola 0,35); ≈ 1,2 temporal, 0,4 inferior des hinteren Pols | kleine Senke / eigenes Mesh |
 | Discus n. optici (Papille) | 1,7 × 1,9 (hochoval); Mitte ≈ 3,0 nasal, 0,3 superior des hinteren Pols (≈ 4 mm von der Fovea) | eigenes Mesh mit Excavatio |
@@ -70,7 +70,7 @@ Alle rotationssymmetrischen Teile entstehen als `THREE.LatheGeometry` aus einem 
 | N. opticus | Ø 3 intraorbital, mit Scheiden Ø 4–4,5; intraorbitale Länge ≈ 25 (S-förmig, Bewegungsreserve) | `TubeGeometry` entlang Catmull-Rom-Kurve von der Papille zum Canalis opticus |
 | Optikusscheiden | Dura, Arachnoidea, Pia; Subarachnoidalraum dazwischen | drei konzentrische Tubes (nur bei Explosion getrennt sichtbar) |
 | A./V. centralis retinae | treten ≈ 10–12 hinter dem Bulbus in den Nerv ein | dünne Tubes, rot/blau |
-| Aa. ciliares posteriores breves / longae | breves: ≈ 15–20 um den Nerv; longae: 2, horizontal (nasal/temporal) bis Corpus ciliare | dünne Tubes |
+| Aa. ciliares posteriores breves / longae | breves: 6–12 Stämme, ≈ 15–20 Äste um den Nerv; longae: 2, horizontal (nasal/temporal) bis Corpus ciliare | dünne Tubes |
 | Vv. vorticosae | 4 (je Quadrant), treten ≈ 3–4 hinter dem Äquator aus | dünne Tubes |
 
 Canalis opticus / Anulus tendineus communis (Orbitaspitze): Zentrum etwa bei **(−11, 1, −33)**. Der Ring hat Radius ≈ 5.
